@@ -5,54 +5,57 @@
 
 ## Engine & Language
 
-- **Engine**: [TO BE CONFIGURED — run /setup-engine]
-- **Language**: [TO BE CONFIGURED]
-- **Rendering**: [TO BE CONFIGURED]
-- **Physics**: [TO BE CONFIGURED]
+- **Engine**: Three.js (WebGL) — no game engine; vanilla JS + Vite
+- **Language**: JavaScript (ES modules). TypeScript optional later, not now.
+- **Rendering**: Three.js `WebGLRenderer`, point-cloud-first (`THREE.Points` / `BufferGeometry`)
+- **Physics**: None — no physics engine. Movement is kinematic; collision via simple AABB/raycast against floor-plan walls.
 
 ## Input & Platform
 
-<!-- Written by /setup-engine. Read by /ux-design, /ux-review, /test-setup, /team-ui, and /dev-story -->
-<!-- to scope interaction specs, test helpers, and implementation to the correct input methods. -->
-
-- **Target Platforms**: [TO BE CONFIGURED — e.g., PC, Console, Mobile, Web]
-- **Input Methods**: [TO BE CONFIGURED — e.g., Keyboard/Mouse, Gamepad, Touch, Mixed]
-- **Primary Input**: [TO BE CONFIGURED — the dominant input for this game]
-- **Gamepad Support**: [TO BE CONFIGURED — Full / Partial / None]
-- **Touch Support**: [TO BE CONFIGURED — Full / Partial / None]
-- **Platform Notes**: [TO BE CONFIGURED — any platform-specific UX constraints]
+- **Target Platforms**: Web browser (desktop-first). Static host (Vercel / Cloudflare Pages).
+- **Input Methods**: Keyboard/Mouse
+- **Primary Input**: Mouse (PointerLock look) + WASD
+- **Gamepad Support**: None
+- **Touch Support**: None
+- **Platform Notes**: Requires PointerLock API (click-to-start). WebGL2 assumed.
 
 ## Naming Conventions
 
-- **Classes**: [TO BE CONFIGURED]
-- **Variables**: [TO BE CONFIGURED]
-- **Signals/Events**: [TO BE CONFIGURED]
-- **Files**: [TO BE CONFIGURED]
-- **Scenes/Prefabs**: [TO BE CONFIGURED]
-- **Constants**: [TO BE CONFIGURED]
+- **Classes**: PascalCase (`Scanner`, `EntityController`)
+- **Variables**: camelCase
+- **Signals/Events**: custom event names in SCREAMING_SNAKE or `'scan:complete'` namespaced strings (EventTarget)
+- **Files**: lowercase, single-word where possible (`scanner.js`, `pointcloud.js`)
+- **Scenes/Prefabs**: N/A — floor plans are JSON data, room geometry is GLTF
+- **Constants**: SCREAMING_SNAKE_CASE in a shared `constants.js`
 
 ## Performance Budgets
 
-- **Target Framerate**: [TO BE CONFIGURED]
-- **Frame Budget**: [TO BE CONFIGURED]
-- **Draw Calls**: [TO BE CONFIGURED]
-- **Memory Ceiling**: [TO BE CONFIGURED]
+- **Target Framerate**: 60 FPS desktop
+- **Frame Budget**: 16.6 ms
+- **Draw Calls**: Keep low — point cloud in as few `THREE.Points` objects as possible; merge geometry
+- **Memory Ceiling**: Point cloud ≤ ~1–2M points per scene
 
 ## Testing
 
-- **Framework**: [TO BE CONFIGURED]
-- **Minimum Coverage**: [TO BE CONFIGURED]
-- **Required Tests**: Balance formulas, gameplay systems, networking (if applicable)
+- **Framework**: Vitest (unit, logic-only — state machine, proximity math, scan validation)
+- **Minimum Coverage**: Logic systems (scanner state machine, entity proximity, win/lose) must have unit tests
+- **Required Tests**: Scan state transitions, entity proximity tiers, win/lose condition evaluation
 
 ## Forbidden Patterns
 
-<!-- Add patterns that should never appear in this project's codebase -->
-- [None configured yet — add as architectural decisions are made]
+- No physics engine (kinematic only)
+- No external HUD — all UI is diegetic (Matterport-style overlay)
+- No jump scares — horror via error messages / point cloud distortion only
+- No hardcoded gameplay values — proximity thresholds, scan timings, node counts live in config/data
 
 ## Allowed Libraries / Addons
 
-<!-- Add approved third-party dependencies here -->
-- [None configured yet — add as dependencies are approved]
+- `three` (core)
+- `three/examples/jsm/controls/PointerLockControls`
+- `three/examples/jsm/loaders/GLTFLoader`
+- Vite (dev server + build)
+- Vitest (testing)
+- Web Audio API (native — no audio lib)
 
 ## Architecture Decisions Log
 
@@ -61,27 +64,23 @@
 
 ## Engine Specialists
 
-<!-- Written by /setup-engine when engine is configured. -->
-<!-- Read by /code-review, /architecture-decision, /architecture-review, and team skills -->
-<!-- to know which specialist to spawn for engine-specific validation. -->
+<!-- No Three.js-specific specialist agents exist in this template (it ships Godot/Unity/Unreal specialists). -->
+<!-- Route web/JS work to the engine-agnostic programmer agents instead. -->
 
-- **Primary**: [TO BE CONFIGURED — run /setup-engine]
-- **Language/Code Specialist**: [TO BE CONFIGURED]
-- **Shader Specialist**: [TO BE CONFIGURED]
-- **UI Specialist**: [TO BE CONFIGURED]
-- **Additional Specialists**: [TO BE CONFIGURED]
-- **Routing Notes**: [TO BE CONFIGURED]
+- **Primary**: gameplay-programmer (engine-agnostic)
+- **Language/Code Specialist**: lead-programmer
+- **Shader Specialist**: technical-artist (GLSL shaders for point cloud effects)
+- **UI Specialist**: ui-programmer
+- **Additional Specialists**: engine-programmer (Three.js render loop / point cloud perf)
+- **Routing Notes**: Godot/Unity/Unreal specialist agents are NOT used on this project. Engine reference docs for Godot are also not authoritative here.
 
 ### File Extension Routing
 
-<!-- Skills use this table to select the right specialist per file type. -->
-<!-- If a row says [TO BE CONFIGURED], fall back to Primary for that file type. -->
-
 | File Extension / Type | Specialist to Spawn |
 |-----------------------|---------------------|
-| Game code (primary language) | [TO BE CONFIGURED] |
-| Shader / material files | [TO BE CONFIGURED] |
-| UI / screen files | [TO BE CONFIGURED] |
-| Scene / prefab / level files | [TO BE CONFIGURED] |
-| Native extension / plugin files | [TO BE CONFIGURED] |
+| Game code (`.js` modules) | gameplay-programmer |
+| Shader / material files (`.glsl`, inline GLSL) | technical-artist |
+| UI / screen files (`ui.js`, `.css`, `index.html`) | ui-programmer |
+| Scene / level files (floor-plan `.json`, room `.gltf`) | level-designer |
+| Render loop / point cloud core (`pointcloud.js`, `main.js`) | engine-programmer |
 | General architecture review | Primary |
