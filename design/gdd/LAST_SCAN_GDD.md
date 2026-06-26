@@ -154,6 +154,22 @@ Used instead of jump scares. Frequency and specificity increase as entity approa
 
 ## 8. Procedural Floor Plan System
 
+### Core Principle — Perception Stripping
+The floor plan is a **rough early guide, not ground truth.** It orients the player
+for the first minutes, then is deliberately made unreliable — dollhouse desync
+(§15-C1), looping geometry (§15-C2), and anomaly rooms that never appear on it.
+As the session escalates the player can trust **only live scan data**, never the map.
+
+This is the game's central horror lever: progressively removing the player's means
+of perceiving the space ahead. The unknown does the work — the less the player can
+predict what is around the corner, the greater the dread. The map gives false
+confidence early so its failure later lands harder.
+
+**System consequence:** Floor Plan (static guide that degrades) and the Scan Node
+system (live, authoritative node state) are **separate systems**. The floor plan
+supplies initial geometry and estimated node positions; the scan system owns the
+only truth the player can act on.
+
 ### Data Source
 - Floor plans sourced from real Matterport scan sessions
 - Randomized selection per playthrough from a curated pool
