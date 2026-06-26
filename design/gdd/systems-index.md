@@ -161,6 +161,31 @@ UI, no jump scares, horror from the familiar made wrong, a found-footage cycle.
 
 ---
 
+## Open Cross-System Items
+
+> Read by `/design-system` Phase 2. Resolve each when the named system is designed.
+
+- **Entity System (#9) — canonical proximity-tier set.** The concept doc §5 lists
+  **5** descriptive proximity states (Far / Medium / Near / Very near / Adjacent),
+  but the `entity:proximity {tier}` event contract used by Point Cloud Renderer and
+  Floor Plan (`loop_trigger_tier`) uses **4** tiers: `FAR / MEDIUM / NEAR /
+  ADJACENT`. When designing Entity (#9), **declare the authoritative tier set** so
+  every consumer agrees, and register it in `entities.yaml`. (Surfaced by
+  `/consistency-check` 2026-06-27 — informational, not a conflict.)
+
+---
+
+## Immediate Next Steps (cross-machine)
+
+1. Run `/design-review design/gdd/floor-plan-system.md` in a **fresh session**
+   (independent critique — never in the authoring session).
+2. Then `/design-system` for **Scan Node System (#4)** — depends on Floor Plan
+   (consumes `estimatedNodePositions`, fires `scan:complete`).
+3. Then Orchestrator (#5), which formalises the `floorplan:*` / `scan:*` /
+   `entity:proximity` event contracts the designed GDDs assume.
+
+---
+
 ## Next Steps
 
 - [ ] Review and approve this systems enumeration
