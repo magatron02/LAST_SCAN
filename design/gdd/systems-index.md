@@ -2,8 +2,12 @@
 
 > **Status**: Draft
 > **Created**: 2026-06-26
-> **Last Updated**: 2026-06-26
+> **Last Updated**: 2026-06-27
 > **Source Concept**: design/gdd/LAST_SCAN_GDD.md
+>
+> **UX note** — Floor Plan System has a UI surface (the dollhouse map). In
+> Pre-Production run `/ux-design` for `design/ux/dollhouse.md` before writing
+> UI/HUD epics.
 
 ---
 
@@ -28,7 +32,7 @@ UI, no jump scares, horror from the familiar made wrong, a found-footage cycle.
 |---|-------------|----------|----------|--------|------------|------------|
 | 1 | Point Cloud Renderer | Core | MVP | Designed | design/gdd/point-cloud-renderer.md | — |
 | 2 | FPS Movement | Core | MVP | Designed | design/gdd/fps-movement.md | — |
-| 3 | Floor Plan System | Gameplay | MVP | Not Started | — | Point Cloud Renderer |
+| 3 | Floor Plan System | Gameplay | MVP | Designed | design/gdd/floor-plan-system.md | Point Cloud Renderer |
 | 4 | Scan Node System | Gameplay | MVP | Not Started | — | Floor Plan System |
 | 5 | Persistence (localStorage) (inferred) | Persistence | Alpha | Not Started | — | — |
 | 6 | Audio System | Audio | Vertical Slice | Not Started | — | Entity System |
@@ -149,10 +153,10 @@ UI, no jump scares, horror from the familiar made wrong, a found-footage cycle.
 | Metric | Count |
 |--------|-------|
 | Total systems identified | 13 |
-| Design docs started | 2 |
+| Design docs started | 3 |
 | Design docs reviewed | 0 |
 | Design docs approved | 0 |
-| MVP systems designed | 2 / 9 |
+| MVP systems designed | 3 / 9 |
 | Vertical Slice systems designed | 0 / 2 |
 
 ---

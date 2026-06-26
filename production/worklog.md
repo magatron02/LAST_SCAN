@@ -6,6 +6,59 @@ any machine.
 
 ---
 
+## 2026-06-27 — Floor Plan System GDD complete (MVP 3/9) + consistency PASS
+
+**What got done**
+- `/design-system` (lean mode) authored the **Floor Plan System GDD** end-to-end:
+  `design/gdd/floor-plan-system.md`. All 8 required sections + Visual/Audio + UI +
+  Open Questions. **23 acceptance criteria**, 2 formulas, 7 tuning knobs.
+- `/consistency-check` full scan → **PASS, 0 conflicts** across all 3 GDDs.
+
+**Key design decisions (Floor Plan)**
+- Layout source: **curated pool of authored layouts** + runtime perception-stripping
+  mutations (NOT procedural geometry). Seed code (§16-H2) selects a specific one.
+- Divergence model: **one true layout + per-room view-state mask** — the dollhouse
+  is a derived, lagging view (UNKNOWN → KNOWN_STALE → KNOWN_CURRENT).
+- Looping geometry (§15-C2): **threshold teleport** — Floor Plan emits
+  `floorplan:loop {targetPosition, targetYaw}`, FPS Movement applies the reposition.
+- Anomaly reveal (§8): a **designated adjacent node completing**
+  (`scan:complete {revealTriggerNodeId}`) unseals the room; dollhouse never shows it.
+- Formulas: `session_escalation` e = clamp(w_t·t/T_session + w_c·coverage, 0,1);
+  `desync_delay` = D0+(D_max−D0)·e² (quadratic — truthful early, degrades late).
+
+**QA pass (qa-lead spawned for Acceptance Criteria)**
+- Caught 3 coverage gaps + 5 untestable criteria. Added AC-D04 (desync growth),
+  AC-E05 (SEALED freeze), AC-L05 (retroactive-loop suppression), AC-E06 (loopSpawn
+  clamp), AC-E07 (chained reveals), AC-E08 (overlap AABBs). Rewrote AC-C02/C03/C06/
+  C07/D02/D03 for testable observables. 17 → 23 criteria.
+
+**Cross-system side-effects written**
+- **FPS Movement GDD patched** — added `floorplan:loop` to its inbound interface
+  (bidirectional consistency fix).
+- **Registry** (`design/registry/entities.yaml`): +2 formulas (session_escalation,
+  desync_delay), +2 constants (T_session 1500s, loop_trigger_tier NEAR);
+  referenced_by += floor-plan on WALL_MARGIN, EYE_HEIGHT, proximity_tier_near.
+- **Systems index**: Floor Plan → Designed; MVP 3/9; dollhouse UX note added.
+
+**Flags**
+- 📌 UX: dollhouse map needs `/ux-design` (`design/ux/dollhouse.md`) before UI/HUD epics.
+- creative-director + CD-GDD-ALIGN pillar review skipped (lean) — review Player
+  Fantasy manually before production.
+- Entity tier vocabulary: concept §5 lists 5 proximity states; the event contract
+  uses 4 (FAR/MEDIUM/NEAR/ADJACENT). Declare the canonical set when Entity (#9) is
+  designed. (Not a conflict — informational.)
+
+**Provisional contracts** (deps undesigned): Orchestrator `floorplan:*` events,
+Scan Node `scan:complete`/node positions, Entity placement.
+
+**Pipeline position:** 3/9 MVP systems designed.
+
+**Next step:** `/design-review design/gdd/floor-plan-system.md` in a **fresh session**
+(independent critique). Then `/design-system` for **Scan Node System** (#4, depends
+on Floor Plan), then Orchestrator (#5).
+
+---
+
 ## 2026-06-26 — Two MVP GDDs designed (Point Cloud Renderer + FPS Movement)
 
 **What got done**

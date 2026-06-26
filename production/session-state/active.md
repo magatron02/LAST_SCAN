@@ -1,34 +1,39 @@
 # Active Session State
 
-**Task:** FPS Movement GDD — COMPLETE
-**Status:** All 8 required sections + Open Questions written and approved
-**File:** design/gdd/fps-movement.md
+**Task:** Floor Plan System GDD — COMPLETE
+**Status:** All 8 required sections + Visual/Audio + UI + Open Questions written and approved
+**File:** design/gdd/floor-plan-system.md
+**Review mode:** lean
 
-**Previous:** Point Cloud Renderer GDD complete (design/gdd/point-cloud-renderer.md)
+**Previous:** FPS Movement GDD complete, Point Cloud Renderer GDD complete
 
-## Key decisions this session
-- Project stack: Godot template → **Three.js/WebGL** (web game per GDD)
-- Main repo: github.com/magatron02/LAST_SCAN, branch `ls_main`
-- GDD expanded v0.1 → v0.3 (§15 + §16 expansion mechanics)
-- Inverted reward: 100% scan coverage = bad ending; deliberate incompletion = escape (§9)
-- Perception stripping principle: Floor Plan = degrading guide, Scan Node = sole truth (§8) → kept as separate systems
-- Entity ↔ Scan circular dep resolved via Orchestrator event bus
+## Key decisions this session (Floor Plan)
+- Layout source: **curated pool of authored layouts** + runtime perception-stripping mutations (not procedural geo)
+- Divergence model: **one true layout + per-room view-state mask** (dollhouse is a derived view)
+- Looping geometry: **threshold teleport** (FPS Movement applies floorplan:loop reposition)
+- Anomaly reveal: **designated adjacent node completing** (scan:complete{revealTriggerNodeId})
+- 2 formulas: session_escalation (e), desync_delay (= D0+(D_max−D0)·e²)
+- 23 acceptance criteria (qa-lead validated — added AC-D04, AC-E05, AC-L05, AC-E06, AC-E07, AC-E08; rewrote AC-C02/C03/C06/C07/D02/D03)
+- Bidirectional fix: FPS Movement GDD patched to receive floorplan:loop
 
-## Systems (13)
-- MVP (9): Point Cloud, FPS Movement, Floor Plan, Scan Node, Orchestrator, Scan Mechanic, Entity, Win/Lose, UI/HUD
-- Vertical Slice (2): Audio, Found-Footage Layer
-- Alpha (2): Persistence, Cycle/Meta
+## Registry updates
+- NEW formulas: session_escalation, desync_delay
+- NEW constants: T_session (1500s), loop_trigger_tier (NEAR)
+- referenced_by += floor-plan-system.md on: WALL_MARGIN, EYE_HEIGHT, proximity_tier_near
 
-## GDD progress (2/9 MVP designed)
-- ✓ Point Cloud Renderer — design/gdd/point-cloud-renderer.md (19 AC, 4 formulas)
-- ✓ FPS Movement — design/gdd/fps-movement.md (18 AC, 4 formulas)
-- Registry: 12 constants total (7 Point Cloud + 5 FPS Movement)
+## GDD progress (3/9 MVP designed)
+- ✓ Point Cloud Renderer — design/gdd/point-cloud-renderer.md
+- ✓ FPS Movement — design/gdd/fps-movement.md
+- ✓ Floor Plan System — design/gdd/floor-plan-system.md (23 AC, 2 formulas)
 
-## Prototype status
-- Slice 1 done: point cloud room + FPS PointerLock movement (Vite + Three.js), build passes, runs at localhost:5173
+## Flags raised
+- 📌 UX Flag: dollhouse map → run /ux-design for design/ux/dollhouse.md before UI/HUD epics (noted in systems-index)
+- creative-director (Player Fantasy) and CD-GDD-ALIGN not consulted — Lean mode; review manually before production
 
 ## Next
-- `/design-system` Floor Plan System (#3, Core, depends on Point Cloud Renderer)
-- Then Scan Node (#4), Orchestrator (#5)
-- `/design-review` both completed GDDs in a fresh session
-- High-risk to prototype early: Point Cloud + Entity rendering (Type A void occluder mesh, Type C ghost geometry)
+- `/design-review design/gdd/floor-plan-system.md` in a FRESH session (independent critique)
+- `/consistency-check` to verify values across GDDs
+- Then design-system: Scan Node (#4, depends on Floor Plan), Orchestrator (#5)
+- High-risk to prototype early: Point Cloud + Entity rendering; loop teleport comfort
+
+<!-- CONSISTENCY-CHECK: 2026-06-27 | GDDs checked: 3 | Conflicts found: 0 | Verdict: PASS -->

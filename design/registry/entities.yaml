@@ -37,7 +37,7 @@
 #   Each entry: name, status, source, referenced_by[], attributes{}, added, revised
 
 version: 1
-last_updated: "2026-06-26"
+last_updated: "2026-06-27"
 
 # ─── ENTITIES ────────────────────────────────────────────────────────────────
 # Named game-world objects: enemies, NPCs, characters, factions, bosses.
@@ -106,7 +106,42 @@ items: []
 #   output_range[min, max], added
 # Optional: expression (the actual formula), notes
 
-formulas: []
+formulas:
+  - name: session_escalation
+    status: active
+    source: design/gdd/floor-plan-system.md
+    referenced_by:
+      - design/gdd/floor-plan-system.md
+      # Reads coverage from Scan Node System; drives perception-stripping intensity
+    variables:
+      - t
+      - T_session
+      - coverage
+      - w_t
+      - w_c
+    output_range: [0, 1]
+    expression: "clamp(w_t*(t/T_session) + w_c*coverage, 0, 1)"
+    notes: "Single 0-1 escalation dial. coverage is owned by Scan Node System
+      (consumed via Orchestrator). Feeds desync_delay."
+    added: 2026-06-27
+    revised: ""
+
+  - name: desync_delay
+    status: active
+    source: design/gdd/floor-plan-system.md
+    referenced_by:
+      - design/gdd/floor-plan-system.md
+      # Governs dollhouse mask lag -> consumed by UI/HUD dollhouse panel
+    variables:
+      - e
+      - D0
+      - D_max
+    output_range: [2.0, 25.0]
+    expression: "D0 + (D_max - D0) * e^2"
+    notes: "Seconds the dollhouse lags real scan-state. e from session_escalation.
+      Quadratic so map stays truthful early, degrades late (perception stripping)."
+    added: 2026-06-27
+    revised: ""
 
 # Example:
 #
@@ -156,6 +191,7 @@ constants:
     source: design/gdd/fps-movement.md
     referenced_by:
       - design/gdd/fps-movement.md
+      - design/gdd/floor-plan-system.md  # loopSpawn clamp height on loop teleport
       # Point Cloud Renderer: camera Y = EYE_HEIGHT (renderer origin height)
     value: 1.5
     unit: metres
@@ -167,6 +203,7 @@ constants:
     source: design/gdd/fps-movement.md
     referenced_by:
       - design/gdd/fps-movement.md
+      - design/gdd/floor-plan-system.md  # door min width 0.71m = 2 × WALL_MARGIN + 0.01
       # Level designer checklist: min corridor width = 2 × WALL_MARGIN + 0.01 = 0.71m
     value: 0.35
     unit: metres
@@ -242,6 +279,7 @@ constants:
     source: design/gdd/point-cloud-renderer.md
     referenced_by:
       - design/gdd/point-cloud-renderer.md
+      - design/gdd/floor-plan-system.md  # loop_trigger_tier default = NEAR
       # Entity System GDD will reference these distance bands
     value: "d_min=3.0, d_max=8.0, J_max=0.020"
     unit: metres / metres-per-frame
@@ -268,6 +306,29 @@ constants:
     value: "d_min=0.0, d_max=3.0, J_max=0.180"
     unit: metres / metres-per-frame
     added: 2026-06-26
+    revised: ""
+
+  - name: T_session
+    status: active
+    source: design/gdd/floor-plan-system.md
+    referenced_by:
+      - design/gdd/floor-plan-system.md
+      # Nominal session length; other timed systems (signal decay §15-D2,
+      # Win/Lose) may reference
+    value: 1500
+    unit: seconds
+    added: 2026-06-27
+    revised: ""
+
+  - name: loop_trigger_tier
+    status: active
+    source: design/gdd/floor-plan-system.md
+    referenced_by:
+      - design/gdd/floor-plan-system.md
+      # Keys off Entity/renderer proximity tiers (FAR/MEDIUM/NEAR/ADJACENT)
+    value: "NEAR"
+    unit: proximity tier
+    added: 2026-06-27
     revised: ""
 
 # Example:

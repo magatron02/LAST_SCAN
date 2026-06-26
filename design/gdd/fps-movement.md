@@ -306,7 +306,7 @@ maintains a sliver of floor/ceiling visible at max pitch to preserve spatial ori
 
 | System | Dependency type | Interface |
 |---|---|---|
-| Floor Plan System | Soft (data consumer) | Room AABB bounds → consumed at session load and on `floorplan:update` events for collision recalculation |
+| Floor Plan System | Soft (data consumer) | Room AABB bounds → consumed at session load and on `floorplan:update` events for collision recalculation. Also receives `floorplan:loop {targetPosition, targetYaw}` → applies the loop-teleport reposition (this system owns the player transform; Floor Plan only requests). |
 | Orchestrator | Event bus (required) | Receives: `movement:scan_triggered {nodePosition}`, `scan:complete`, `scan:abort`. Emits: `player:position {x, y, z}` each frame |
 
 FPS Movement has no hard structural upstream dependencies — Foundation layer.
