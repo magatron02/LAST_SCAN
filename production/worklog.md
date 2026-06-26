@@ -6,6 +6,17 @@ any machine.
 
 ---
 
+## 2026-06-26 — Quicksave checkpoint (protocol live)
+
+- Quicksave protocol confirmed operational and pushed (`ls_main`). No code/design
+  changes since the previous entry — this is a continuity checkpoint.
+- **Pipeline position:** `/map-systems` complete. Nothing in progress.
+- **Next step:** `/design-system` for the first MVP system — start with **Point
+  Cloud Renderer** (high-risk, prototype underway) or **Scan Mechanic** (core verb).
+  Optional `/gate-check systems-design` first.
+
+---
+
 ## 2026-06-26 — Project setup, stack pivot, GDD expansion, systems decomposition
 
 **Repo / infra**
