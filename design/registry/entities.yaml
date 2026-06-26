@@ -37,7 +37,7 @@
 #   Each entry: name, status, source, referenced_by[], attributes{}, added, revised
 
 version: 1
-last_updated: ""
+last_updated: "2026-06-26"
 
 # ─── ENTITIES ────────────────────────────────────────────────────────────────
 # Named game-world objects: enemies, NPCs, characters, factions, bosses.
@@ -139,7 +139,136 @@ formulas: []
 #
 # Required fields: name, status, source, referenced_by, value, unit, added
 
-constants: []
+constants:
+  - name: MOVE_SPEED
+    status: active
+    source: design/gdd/fps-movement.md
+    referenced_by:
+      - design/gdd/fps-movement.md
+      # Entity System GDD: entity chase speed defined relative to this
+    value: 1.6
+    unit: m/s
+    added: 2026-06-26
+    revised: ""
+
+  - name: EYE_HEIGHT
+    status: active
+    source: design/gdd/fps-movement.md
+    referenced_by:
+      - design/gdd/fps-movement.md
+      # Point Cloud Renderer: camera Y = EYE_HEIGHT (renderer origin height)
+    value: 1.5
+    unit: metres
+    added: 2026-06-26
+    revised: ""
+
+  - name: WALL_MARGIN
+    status: active
+    source: design/gdd/fps-movement.md
+    referenced_by:
+      - design/gdd/fps-movement.md
+      # Level designer checklist: min corridor width = 2 × WALL_MARGIN + 0.01 = 0.71m
+    value: 0.35
+    unit: metres
+    added: 2026-06-26
+    revised: ""
+
+  - name: MOUSE_SENSITIVITY
+    status: active
+    source: design/gdd/fps-movement.md
+    referenced_by:
+      - design/gdd/fps-movement.md
+      # UI/HUD: settings menu sensitivity slider
+    value: 0.0010
+    unit: rad/px
+    added: 2026-06-26
+    revised: ""
+
+  - name: PITCH_LIMITS
+    status: active
+    source: design/gdd/fps-movement.md
+    referenced_by:
+      - design/gdd/fps-movement.md
+      # Scan Mechanic: scan capture arc operates within these limits in NAVIGATE
+    value: "min=-1.3963, max=+1.3963"
+    unit: radians
+    added: 2026-06-26
+    revised: ""
+
+  - name: base_density
+    status: active
+    source: design/gdd/point-cloud-renderer.md
+    referenced_by:
+      - design/gdd/point-cloud-renderer.md
+    value: 900
+    unit: pts/m²
+    added: 2026-06-26
+    revised: ""
+
+  - name: density_budget_ceiling
+    status: active
+    source: design/gdd/point-cloud-renderer.md
+    referenced_by:
+      - design/gdd/point-cloud-renderer.md
+    value: 1500000
+    unit: points
+    added: 2026-06-26
+    revised: ""
+
+  - name: anomaly_sigma_threshold
+    status: active
+    source: design/gdd/point-cloud-renderer.md
+    referenced_by:
+      - design/gdd/point-cloud-renderer.md
+      # UI/HUD GDD will reference this (subscribes to renderer:anomaly_density events)
+    value: 2.5
+    unit: sigma
+    added: 2026-06-26
+    revised: ""
+
+  - name: scan_frame_duration
+    status: active
+    source: design/gdd/point-cloud-renderer.md
+    referenced_by:
+      - design/gdd/point-cloud-renderer.md
+      # Scan Mechanic GDD will reference this (total scan cycle = 4 × T)
+    value: 0.5
+    unit: seconds
+    added: 2026-06-26
+    revised: ""
+
+  - name: proximity_tier_near
+    status: active
+    source: design/gdd/point-cloud-renderer.md
+    referenced_by:
+      - design/gdd/point-cloud-renderer.md
+      # Entity System GDD will reference these distance bands
+    value: "d_min=3.0, d_max=8.0, J_max=0.020"
+    unit: metres / metres-per-frame
+    added: 2026-06-26
+    revised: ""
+
+  - name: entity_influence_radius
+    status: active
+    source: design/gdd/point-cloud-renderer.md
+    referenced_by:
+      - design/gdd/point-cloud-renderer.md
+      # Entity System GDD will reference this (how far entity visual effects extend)
+    value: 5.0
+    unit: metres
+    added: 2026-06-26
+    revised: ""
+
+  - name: proximity_tier_adjacent
+    status: active
+    source: design/gdd/point-cloud-renderer.md
+    referenced_by:
+      - design/gdd/point-cloud-renderer.md
+      # Entity System GDD will reference these distance bands
+    value: "d_min=0.0, d_max=3.0, J_max=0.180"
+    unit: metres / metres-per-frame
+    added: 2026-06-26
+    revised: ""
 
 # Example:
 #

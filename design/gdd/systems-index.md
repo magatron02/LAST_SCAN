@@ -26,8 +26,8 @@ UI, no jump scares, horror from the familiar made wrong, a found-footage cycle.
 
 | # | System Name | Category | Priority | Status | Design Doc | Depends On |
 |---|-------------|----------|----------|--------|------------|------------|
-| 1 | Point Cloud Renderer | Core | MVP | In Design | — (prototype: src/pointcloud.js) | — |
-| 2 | FPS Movement | Core | MVP | In Design | — (prototype: src/main.js) | — |
+| 1 | Point Cloud Renderer | Core | MVP | Designed | design/gdd/point-cloud-renderer.md | — |
+| 2 | FPS Movement | Core | MVP | Designed | design/gdd/fps-movement.md | — |
 | 3 | Floor Plan System | Gameplay | MVP | Not Started | — | Point Cloud Renderer |
 | 4 | Scan Node System | Gameplay | MVP | Not Started | — | Floor Plan System |
 | 5 | Persistence (localStorage) (inferred) | Persistence | Alpha | Not Started | — | — |
@@ -149,10 +149,10 @@ UI, no jump scares, horror from the familiar made wrong, a found-footage cycle.
 | Metric | Count |
 |--------|-------|
 | Total systems identified | 13 |
-| Design docs started | 0 |
+| Design docs started | 2 |
 | Design docs reviewed | 0 |
 | Design docs approved | 0 |
-| MVP systems designed | 0 / 9 |
+| MVP systems designed | 2 / 9 |
 | Vertical Slice systems designed | 0 / 2 |
 
 ---

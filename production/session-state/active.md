@@ -1,8 +1,10 @@
 # Active Session State
 
-**Task:** Systems decomposition (map-systems)
-**Status:** Systems index created — 13 systems enumerated, dependencies + priorities set
-**File:** design/gdd/systems-index.md
+**Task:** FPS Movement GDD — COMPLETE
+**Status:** All 8 required sections + Open Questions written and approved
+**File:** design/gdd/fps-movement.md
+
+**Previous:** Point Cloud Renderer GDD complete (design/gdd/point-cloud-renderer.md)
 
 ## Key decisions this session
 - Project stack: Godot template → **Three.js/WebGL** (web game per GDD)
@@ -17,9 +19,16 @@
 - Vertical Slice (2): Audio, Found-Footage Layer
 - Alpha (2): Persistence, Cycle/Meta
 
+## GDD progress (2/9 MVP designed)
+- ✓ Point Cloud Renderer — design/gdd/point-cloud-renderer.md (19 AC, 4 formulas)
+- ✓ FPS Movement — design/gdd/fps-movement.md (18 AC, 4 formulas)
+- Registry: 12 constants total (7 Point Cloud + 5 FPS Movement)
+
 ## Prototype status
 - Slice 1 done: point cloud room + FPS PointerLock movement (Vite + Three.js), build passes, runs at localhost:5173
 
 ## Next
-- Design MVP GDDs in order: `/design-system` starting with Point Cloud Renderer (or Scan Mechanic = core verb)
-- High-risk to prototype early: Point Cloud + Entity rendering (Type A void, Type C ghost geometry)
+- `/design-system` Floor Plan System (#3, Core, depends on Point Cloud Renderer)
+- Then Scan Node (#4), Orchestrator (#5)
+- `/design-review` both completed GDDs in a fresh session
+- High-risk to prototype early: Point Cloud + Entity rendering (Type A void occluder mesh, Type C ghost geometry)

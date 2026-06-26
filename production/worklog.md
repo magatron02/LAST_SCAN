@@ -6,6 +6,43 @@ any machine.
 
 ---
 
+## 2026-06-26 — Two MVP GDDs designed (Point Cloud Renderer + FPS Movement)
+
+**What got done**
+- `/design-system` (lean review mode) ran end-to-end for two systems back-to-back.
+- **Point Cloud Renderer GDD** — COMPLETE: `design/gdd/point-cloud-renderer.md`. All 8
+  required sections + Visual/Audio + UI + Open Questions. 19 acceptance criteria.
+  4 formulas (scan materialize opacity ramp, anomaly sigma, proximity jitter, density).
+- **FPS Movement GDD** — COMPLETE: `design/gdd/fps-movement.md`. All 8 sections +
+  Open Questions. 18 acceptance criteria (qa-lead spawned). 4 formulas (frame delta
+  with dt cap 0.1s, AABB clamp union-bounds, yaw, pitch with YXZ sign convention).
+  Two modes: NAVIGATE (WASD 1.6 m/s + PointerLock) and SCAN_LOCKED (input revoked).
+
+**Registry** (`design/registry/entities.yaml`)
+- Point Cloud: 7 constants (base_density 900, density_budget_ceiling 1.5M,
+  anomaly_sigma 2.5, scan_frame_duration 0.5, entity_influence_radius 5.0,
+  proximity_tier_near, proximity_tier_adjacent).
+- FPS Movement: 5 constants (MOVE_SPEED 1.6, EYE_HEIGHT 1.5, WALL_MARGIN 0.35,
+  MOUSE_SENSITIVITY 0.0010, PITCH_LIMITS ±1.3963 rad).
+
+**Key design decisions**
+- Type A entity = invisible depth-only occluder mesh (not removed points) — Open
+  Question, needs Three.js r171 prototype.
+- Multi-room AABB = union of accessible room bounds (single rect); notched rooms =
+  level-designer invisible blockers.
+- Pitch ±80° not ±90° (gimbal). movementY negated (Three.js YXZ convention).
+- dt hard-capped 0.1s (tab-restore anti-tunnelling; max 0.16m < WALL_MARGIN 0.35m).
+- qa-lead flagged: dt must be a PARAMETER to update fn (testability for AC-EC03);
+  AC-F04 pitch-sign is the likely first-pass inversion bug — test first.
+
+**Pipeline position:** 2/9 MVP systems designed. systems-index.md updated.
+
+**Next step:** `/design-system` for **Floor Plan System** (#3, Core layer, depends on
+Point Cloud Renderer). Then Scan Node (#4), Orchestrator (#5). Eventually
+`/design-review` on both completed GDDs in a fresh session.
+
+---
+
 ## 2026-06-26 — Quicksave checkpoint (protocol live)
 
 - Quicksave protocol confirmed operational and pushed (`ls_main`). No code/design
