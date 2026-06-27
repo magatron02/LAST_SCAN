@@ -37,7 +37,7 @@
 #   Each entry: name, status, source, referenced_by[], attributes{}, added, revised
 
 version: 1
-last_updated: "2026-06-27"
+last_updated: "2026-06-27"  # + scan-node-system: coverage formula, corruption_threshold
 
 # ─── ENTITIES ────────────────────────────────────────────────────────────────
 # Named game-world objects: enemies, NPCs, characters, factions, bosses.
@@ -123,6 +123,26 @@ formulas:
     expression: "clamp(w_t*(t/T_session) + w_c*coverage, 0, 1)"
     notes: "Single 0-1 escalation dial. coverage is owned by Scan Node System
       (consumed via Orchestrator). Feeds desync_delay."
+    added: 2026-06-27
+    revised: ""
+
+  - name: coverage
+    status: active
+    source: design/gdd/scan-node-system.md
+    referenced_by:
+      - design/gdd/scan-node-system.md
+      - design/gdd/floor-plan-system.md  # session_escalation reads coverage as input
+      # Win/Lose GDD (when authored): inverted-reward ending evaluation (§9)
+    variables:
+      - V
+      - S
+    output_range: [0.0, 1.0]
+    expression: "coverage = V / S   (V = VALID nodes; S = count(STANDARD) + 1 anomaly node; NULL excluded; S fixed at init)"
+    notes: "Single coverage fraction. Denominator includes the ANOMALY_FINAL node
+      from init, so escape (all standard, anomaly unscanned) tops out at N/(N+1) <
+      1.0; 1.0 reachable only by scanning the anomaly node (Completion Trap §9).
+      UI nodesCompleted counter uses a DIFFERENT (standard-only) denominator — do
+      not conflate."
     added: 2026-06-27
     revised: ""
 
@@ -317,6 +337,18 @@ constants:
       # Win/Lose) may reference
     value: 1500
     unit: seconds
+    added: 2026-06-27
+    revised: ""
+
+  - name: corruption_threshold
+    status: active
+    source: design/gdd/scan-node-system.md
+    referenced_by:
+      - design/gdd/scan-node-system.md
+      # Win/Lose GDD (when authored): integrity-failure ending (§11)
+      # UI/HUD GDD (when authored): integrity warning display
+    value: 4
+    unit: invalid/corrupted captures
     added: 2026-06-27
     revised: ""
 

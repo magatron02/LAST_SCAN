@@ -1,11 +1,36 @@
 # Active Session State
 
-**Task:** Floor Plan System GDD — COMPLETE
-**Status:** All 8 required sections + Visual/Audio + UI + Open Questions written and approved
-**File:** design/gdd/floor-plan-system.md
+**Task:** Scan Node System GDD (#4) — COMPLETE
+**Status:** All 8 sections + Visual/Audio + UI + Open Questions written & approved
+**File:** design/gdd/scan-node-system.md
 **Review mode:** lean
 
-**Previous:** FPS Movement GDD complete, Point Cloud Renderer GDD complete
+**Previous:** Floor Plan, FPS Movement, Point Cloud Renderer GDDs complete
+
+**Note:** #4 restarted fresh on desktop (old Legion session abandoned — never pushed)
+
+## Scan Node — key decisions
+- Scan Node = sole node-state authority; emits canonical scan:complete / scan:abort
+- coverage = V / S; S = count(STANDARD) + 1 anomaly node (NULL excluded), fixed at init
+  → escape tops at N/(N+1) <100%; 1.0 only by scanning anomaly node (Completion Trap)
+- nodesCompleted UI counter = STANDARD-only denominator (diverges from coverage — by design)
+- Answers floor-plan Open Q#2 (coverage definition)
+- corruption_threshold = 4 → scan:integrity_failure (single fire)
+- 22 acceptance criteria (qa-lead): 18 Logic + 4 Integration
+- Section D (systems-designer) + Section H (qa-lead) spawned per lean high-risk
+
+## Registry updates
+- NEW formula: coverage (source scan-node; referenced_by floor-plan session_escalation)
+- NEW constant: corruption_threshold = 4
+
+## GDD progress (4/9 MVP designed)
+- ✓ Point Cloud Renderer · ✓ FPS Movement · ✓ Floor Plan · ✓ Scan Node
+
+## Next
+- `/design-review` (fresh session) on floor-plan + scan-node (both unreviewed)
+- `/consistency-check` to verify values across 4 GDDs
+- Then `/design-system` Orchestrator (#5) — event bus convergence for floorplan:* / scan:* / entity:proximity
+- Then Scan Mechanic (#6)
 
 ## Key decisions this session (Floor Plan)
 - Layout source: **curated pool of authored layouts** + runtime perception-stripping mutations (not procedural geo)

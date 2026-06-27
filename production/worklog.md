@@ -6,6 +6,54 @@ any machine.
 
 ---
 
+## 2026-06-27 — Scan Node System GDD complete (MVP 4/9)
+
+**Cross-machine note**
+- #4 was started in a separate session (Legion) but **never pushed**; that session was
+  abandoned. #4 re-done fresh on **desktop** from scratch. If the old Legion session is
+  still open, do NOT push from it — close it. No repo artifact from it exists to delete.
+
+**What got done**
+- `/design-system` (lean mode) authored **Scan Node System GDD** end-to-end:
+  `design/gdd/scan-node-system.md`. All 8 sections + Visual/Audio + UI + Open Questions.
+  **22 acceptance criteria** (18 Logic + 4 Integration), 1 formula + 2 derived metrics.
+- Section D (systems-designer) + Section H (qa-lead) spawned per lean high-risk rule.
+
+**Key design decisions (Scan Node)**
+- Scan Node = **sole node-state authority**. It (not Scan Mechanic) emits the canonical
+  `scan:complete` / `scan:abort` everyone listens for. Scan Mechanic only reports
+  `scan:started` / `scan:captured`. (Provisional — confirm at Orchestrator #5 / Scan Mechanic #6.)
+- **coverage = V / S**, S = count(STANDARD) + 1 anomaly node (NULL excluded), **fixed at init**.
+  Escape (all standard, anomaly unscanned) tops at N/(N+1) < 100% (UI flags "incomplete");
+  100% only by scanning the anomaly node = Completion Trap (§9). **This answers floor-plan Open Q#2.**
+- **nodesCompleted UI counter uses a STANDARD-ONLY denominator** — deliberately diverges from
+  coverage (escape player sees `12/12` AND `92%`). Flagged for creative-director at HUD GDD.
+- Node types: STANDARD / ANOMALY_FINAL (scannable only after room reveal) / NULL (locked `[?]`).
+- entityInFrame is RECORDED not detected — a valid scan that captures the entity STILL counts
+  (the trap working as designed); sets entityEverCaptured for Win/Lose.
+- `corruption_threshold` = 4 invalids → `scan:integrity_failure` (single fire).
+
+**Registry** (`design/registry/entities.yaml`)
+- NEW formula: `coverage` (source scan-node; referenced_by floor-plan `session_escalation`).
+- NEW constant: `corruption_threshold` = 4.
+
+**Systems index**
+- #4 Scan Node → **Designed**. MVP designed = **4/9**. Added 3 Open Cross-System Items
+  (nodesCompleted divergence for HUD, `scan:*` family for Orchestrator, plus existing entity-tier).
+- Also committing untracked `.claude/agent-memory/ux-designer/` (dollhouse UX review from the
+  floor-plan session — follows the already-tracked lead-programmer memory convention).
+
+**rtk note (desktop):** `rtk` hook still broken (`rtk: command not found`) — all git run via
+`/mingw64/bin/git` to bypass the hook rewrite.
+
+**Next step**
+- `/design-review` (fresh session) on floor-plan + scan-node (both unreviewed).
+- `/consistency-check` across the 4 GDDs.
+- Then `/design-system` **Orchestrator (#5)** — formalises `floorplan:*` / `scan:*` /
+  `entity:proximity` event contracts (convergence point for 4 systems). Then Scan Mechanic (#6).
+
+---
+
 ## 2026-06-27 — Floor Plan System GDD complete (MVP 3/9) + consistency PASS
 
 **What got done**

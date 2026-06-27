@@ -33,7 +33,7 @@ UI, no jump scares, horror from the familiar made wrong, a found-footage cycle.
 | 1 | Point Cloud Renderer | Core | MVP | Designed | design/gdd/point-cloud-renderer.md | — |
 | 2 | FPS Movement | Core | MVP | Designed | design/gdd/fps-movement.md | — |
 | 3 | Floor Plan System | Gameplay | MVP | Designed | design/gdd/floor-plan-system.md | Point Cloud Renderer |
-| 4 | Scan Node System | Gameplay | MVP | Not Started | — | Floor Plan System |
+| 4 | Scan Node System | Gameplay | MVP | Designed | design/gdd/scan-node-system.md | Floor Plan System |
 | 5 | Persistence (localStorage) (inferred) | Persistence | Alpha | Not Started | — | — |
 | 6 | Audio System | Audio | Vertical Slice | Not Started | — | Entity System |
 | 7 | Session/Game State Orchestrator (inferred) | Core | MVP | Not Started | — | Point Cloud, FPS Movement, Scan Node |
@@ -153,10 +153,10 @@ UI, no jump scares, horror from the familiar made wrong, a found-footage cycle.
 | Metric | Count |
 |--------|-------|
 | Total systems identified | 13 |
-| Design docs started | 3 |
+| Design docs started | 4 |
 | Design docs reviewed | 0 |
 | Design docs approved | 0 |
-| MVP systems designed | 3 / 9 |
+| MVP systems designed | 4 / 9 |
 | Vertical Slice systems designed | 0 / 2 |
 
 ---
@@ -173,16 +173,30 @@ UI, no jump scares, horror from the familiar made wrong, a found-footage cycle.
   every consumer agrees, and register it in `entities.yaml`. (Surfaced by
   `/consistency-check` 2026-06-27 — informational, not a conflict.)
 
+- **UI/HUD (#12) — `nodesCompleted` vs `coverage` denominator divergence.** Scan
+  Node (#4) intentionally uses a **standard-only** denominator for the `NODES
+  COMPLETED X/Y` counter while `coverage` uses `N+1` (incl. anomaly node). The two
+  numbers diverge on purpose (escape player sees `12/12` + `92%`). Confirm the
+  player-experience framing with `creative-director` when designing the HUD, and do
+  not "reconcile" the two denominators. (Scan Node Open Q#1.)
+
+- **Orchestrator (#5) — `scan:*` event family.** Scan Node (#4) emits the
+  authoritative `scan:complete` / `scan:abort` / `scan:coverage` /
+  `scan:integrity_warning` / `scan:integrity_failure`, and consumes `scan:started` /
+  `scan:captured` from Scan Mechanic (#6). Orchestrator must register this family
+  alongside `floorplan:*`. (Scan Node Dependencies §.)
+
 ---
 
 ## Immediate Next Steps (cross-machine)
 
-1. Run `/design-review design/gdd/floor-plan-system.md` in a **fresh session**
-   (independent critique — never in the authoring session).
-2. Then `/design-system` for **Scan Node System (#4)** — depends on Floor Plan
-   (consumes `estimatedNodePositions`, fires `scan:complete`).
-3. Then Orchestrator (#5), which formalises the `floorplan:*` / `scan:*` /
-   `entity:proximity` event contracts the designed GDDs assume.
+1. Run `/design-review` in a **fresh session** (independent critique) on the
+   undeviewed GDDs: `floor-plan-system.md` and `scan-node-system.md`.
+2. Then `/design-system` for **Orchestrator (#5)** — the event bus that formalises
+   the `floorplan:*` / `scan:*` / `entity:proximity` contracts every designed GDD
+   assumes. This is the convergence point for 4 systems' provisional event names.
+3. Then Scan Mechanic (#6) — the scan *verb* (360° lock, abort) that drives Scan
+   Node via `scan:started` / `scan:captured`.
 
 ---
 
