@@ -1,8 +1,8 @@
 # Floor Plan System
 
-> **Status**: In Design
+> **Status**: In Review (MAJOR REVISION addressed 2026-06-27 — re-review pending)
 > **Author**: magatron02 + agents
-> **Last Updated**: 2026-06-26
+> **Last Updated**: 2026-06-27
 > **Implements Pillar**: Perception Stripping (§8) · Horror from the familiar made wrong
 
 ## Overview
@@ -39,8 +39,9 @@ the nodes.* That confidence is the setup, and it has to feel genuinely good, not
 flimsy — the fall is only as far as the height you build.
 
 Then the map starts being wrong, and the horror is that **it's wrong quietly**. No
-alarm, no jump — a room the player physically just scanned still reads as un-scanned
-on the dollhouse (Desync). A corridor that should end at the bedroom delivers them
+alarm, no jump — the dollhouse shows the player standing in a room they know they
+already left, its position marker lagging seconds (then tens of seconds) behind the
+real body (Desync). A corridor that should end at the bedroom delivers them
 back to the kitchen (Loop). A door opens onto a room the map never admitted existed
 (anomaly reveal). Each disagreement between the map and the space is small enough to
 rationalize once — *I misremembered* — and that self-doubt is the point. The player
@@ -110,19 +111,26 @@ loopable:bool, loopTarget?:roomId, loopSpawn?:{position, yaw} }`
    anomaly room's `revealTriggerNodeId`: unseal that room's door, emit its geometry
    via `floorplan:update`, and add it to the navigable set. **The dollhouse is not
    updated** — the room stays off the map (perception stripping).
-6. **Dollhouse desync.** The mask's reflection of a room's scanned-state lags real
-   `scan:complete` by `desync_delay` seconds, which grows over the session by
-   `desync_growth`. A room the player just scanned reads as un-scanned on the
-   dollhouse for the delay window. Desync only ever makes the map *more stale*,
-   never wrong-in-the-player's-favor.
+6. **Dollhouse desync (position marker + scan-state).** The dollhouse lags reality by
+   `desync_delay` seconds (grows over the session via Formula 2). Primarily, the
+   **player-position marker** renders the player's position from `desync_delay`
+   seconds ago — late session it shows the player in a room they have already left
+   (the anchor moment). Secondarily, a room's scanned-state reflection lags real
+   `scan:complete` by the same `desync_delay`. Desync only ever makes the map *more
+   stale*, never wrong-in-the-player's-favor. At `desync_delay = 0` (D0=0, e=0) the
+   marker and scan-state update in the same handler (no-op queue).
 7. **Looping geometry (threshold teleport).** A `loopable` door **arms** when its
-   trigger condition is met (entity proximity ≥ `loop_trigger_tier`, or an anomaly
-   room has been revealed). When the player crosses an armed door's threshold, emit
-   `floorplan:loop {targetPosition, targetYaw, toRoom}`; FPS Movement applies the
-   reposition to the `loopTarget` room's entrance. A loop event flags the
-   destination for **subtle-difference injection** (owned by renderer/entity,
-   §15-C2). The door then enters `COOLDOWN` for `loop_cooldown` before it can
-   re-arm.
+   trigger condition is met — `(entity proximity ≥ loop_trigger_tier OR anomaly room
+   revealed) AND session escalation e ≥ loop_arm_floor`. The escalation floor means
+   no loop can fire before the player has built enough trust in the space to lose
+   ("the fall is only as far as the height you build"). When the player crosses an
+   armed door's threshold, emit `floorplan:loop {targetPosition, targetYaw, toRoom}`;
+   FPS Movement applies the reposition to the `loopTarget` room's entrance. A loop
+   event flags the destination for **subtle-difference injection** (owned by
+   renderer/entity — §15-C2, see Open Q#6). The door then enters a **per-door**
+   `COOLDOWN` for `loop_cooldown`; on exit it re-arms only if its condition still
+   holds and `e ≥ loop_arm_floor` (anomaly-revealed doors stay condition-eligible
+   permanently, so late-session they re-arm each cycle by design).
 8. **Estimated ≠ actual nodes.** The dollhouse shows `estimatedNodePositions`; the
    Scan Node System owns real node positions and may differ. The floor plan supplies
    estimates only — it never claims node truth.
@@ -152,10 +160,10 @@ loopable:bool, loopTarget?:roomId, loopSpawn?:{position, yaw} }`
 
 | State | Description | Entry | Exit |
 |---|---|---|---|
-| `DORMANT` | Normal door, leads to its real neighbour | Init | Trigger condition met |
-| `ARMED` | Crossing it will loop the player | `entity:proximity ≥ loop_trigger_tier` OR anomaly revealed | Player crosses / condition clears |
-| `TRIGGERED` | Loop event emitted this frame | Player crosses threshold | Next frame → `COOLDOWN` |
-| `COOLDOWN` | Cannot re-arm yet | After trigger | `loop_cooldown` elapsed → `DORMANT` |
+| `DORMANT` | Normal door, leads to its real neighbour | Init; or COOLDOWN elapsed with condition no longer met | Arm condition met (see below) |
+| `ARMED` | Crossing it will loop the player | `(entity:proximity ≥ loop_trigger_tier OR anomaly revealed) AND e ≥ loop_arm_floor` | Player crosses → `TRIGGERED`; OR proximity drops below tier (anomaly-armed doors don't clear this way) → `DORMANT` |
+| `TRIGGERED` | Loop event emitted this frame | Player crosses threshold while `ARMED` | Next frame → `COOLDOWN` |
+| `COOLDOWN` | This door cannot re-arm yet (per-door, not global) | After trigger | `loop_cooldown` elapsed → re-evaluate: condition + `e ≥ floor` still met → `ARMED`, else `DORMANT` |
 
 **Dollhouse mask, per room:** `UNKNOWN → KNOWN_STALE → KNOWN_CURRENT`. Desync holds
 a room in `KNOWN_STALE` for `desync_delay`; anomaly rooms never leave `UNKNOWN`.
@@ -188,15 +196,20 @@ scanned — so a fast or a thorough player both escalate.
 |---|---|---|---|---|
 | Elapsed time | t | float | 0–T_session s | Seconds since session start |
 | Nominal length | T_session | float | 900–2400 s | Tuning knob — default 1500 s (25 min, §1) |
-| Coverage | coverage | float | 0–1 | Scan coverage fraction (from Scan Node via Orchestrator) |
-| Time weight | w_t | float | 0–1 | Tuning knob — default 0.5 |
-| Coverage weight | w_c | float | 0–1 | Tuning knob — default 0.5 (`w_t + w_c = 1`) |
+| Coverage | coverage | float | 0–1 | Scan coverage fraction = `V/S`, owned by Scan Node System (registry: `coverage`; S = count(STANDARD)+1 anomaly node); consumed via Orchestrator. |
+| Time weight | w_t | float | 0–1 | Tuning knob — default 0.5. **Absolute weight**: `w_t + w_c = 1` enforced (not relative; no renormalization). |
+| Coverage weight | w_c | float | 0–1 | Tuning knob — default 0.5; `w_c = 1 − w_t`. Both-zero is invalid → fallback 0.5/0.5 + warning. |
 | Output | e | float | 0–1 | Escalation level |
 
 **Output Range:** 0 (session start, nothing scanned) → 1 (full session elapsed or
 fully covered). Clamped so overrun time can't push e > 1.
 **Example:** t=375 s, T_session=1500, coverage=0.25, w_t=w_c=0.5 → e = 0.5×0.25 +
 0.5×0.25 = **0.25**.
+**Escape-player ceiling:** an escape player (anomaly never scanned, coverage ≤ `N/(N+1)`
+≈ 0.923) reaches at most `e ≈ 0.5×1.0 + 0.5×0.923 = 0.962` at full session length;
+`e = 1.0` is reachable only via the Completion Trap (coverage = 1.0). The registry
+`desync_delay` top (25.0 s) therefore applies only to the trap ending — the escape
+ceiling is ~22.5 s (Formula 2).
 
 ---
 
@@ -204,32 +217,32 @@ fully covered). Clamped so overrun time can't push e > 1.
 
 The `desync_delay` formula is defined as:
 
-`desync_delay = D0 + (D_max − D0) × e²`
+`desync_delay = D0 + (D_max − D0) × e³`
 
-How long the dollhouse lags real scan-state. Quadratic in `e` so the map stays
-nearly truthful early (the reliability the §8 fall depends on) and degrades sharply
-late.
+How long the dollhouse lags reality (both the player-position marker and scan-state,
+Core Rule 6). **Cubic** in `e` so the map stays genuinely truthful early — the
+reliability the §8 fall depends on — and degrades steeply only late.
 
 **Variables:**
 | Variable | Symbol | Type | Range | Description |
 |---|---|---|---|---|
 | Escalation | e | float | 0–1 | From Formula 1 |
 | Base delay | D0 | float | 0–10 s | Tuning knob — default 2.0 s |
-| Max delay | D_max | float | 10–120 s | Tuning knob — default 25.0 s |
+| Max delay | D_max | float | 10–120 s | Tuning knob — default 25.0 s (reached only at e=1, the Completion Trap) |
 | Output | desync_delay | float | D0–D_max s | Seconds the map lags behind reality |
 
-**Output Range:** D0 (2.0 s) at e=0 → D_max (25.0 s) at e=1. Monotonic; a
-just-scanned room reads un-scanned on the map for this long.
-**Example:** e=0.5 → 2.0 + 23.0 × 0.25 = **7.75 s**. e=0.9 → 2.0 + 23.0 × 0.81 =
-**20.6 s**.
+**Output Range:** D0 (2.0 s) at e=0 → D_max (25.0 s) at e=1. Monotonic. At `D0=0`,
+`desync_delay=0` at e=0 (instantaneous update — valid degenerate case, Core Rule 6).
+**Examples:** e=0.5 → 2.0 + 23.0 × 0.125 = **4.88 s**. e=0.9 → 2.0 + 23.0 × 0.729 =
+**18.77 s**. Escape-player ceiling (e≈0.962) → 2.0 + 23.0 × 0.891 ≈ **22.5 s** (never
+the full 25 s).
 
 > Looping is a state condition (Detailed Design rule 7: arms on
-> `entity:proximity ≥ loop_trigger_tier` or anomaly reveal), not a formula — no math
-> beyond the threshold compare.
+> `(entity:proximity ≥ loop_trigger_tier OR anomaly revealed) AND e ≥ loop_arm_floor`),
+> not a formula — the only math is the threshold/floor compare.
 >
-> *Note: `systems-designer` not consulted — authored inline (Lean mode, no agent
-> spawn). Validate these curves in playtest or spawn the specialist before
-> production.*
+> *Note: `systems-designer` consulted in re-review (2026-06-27); curve changed e²→e³,
+> per-door cooldown and escalation floor added. Validate the curve feel in playtest.*
 
 ## Edge Cases
 
@@ -255,9 +268,11 @@ just-scanned room reads un-scanned on the map for this long.
   the loop is suppressed and the door behaves normally (leads to its real neighbour)
   until the target is `REVEALED`. Prevents teleporting into un-emitted geometry.
 
-- **If two loop doors would fire in rapid succession** (ping-pong): a global
-  `loop_cooldown` blocks any new loop firing within the cooldown window of the last
-  one. Caps teleport chains; prevents a disorienting softlock.
+- **If the same loop door would fire in rapid succession** (ping-pong): a **per-door**
+  `loop_cooldown` blocks that door from re-firing within its cooldown window. Each
+  door cools independently — triggering one door does NOT "safe" the others (closes
+  the global-cooldown exploit). Caps single-door teleport chains; prevents a
+  disorienting softlock.
 
 - **If `entity:proximity` arms a loop while the player already overlaps the
   threshold**: the loop does **not** fire retroactively. A loop fires only on a
@@ -293,6 +308,27 @@ just-scanned room reads un-scanned on the map for this long.
   AABB**: clamp the spawn to the target room's interior centre at `EYE_HEIGHT`.
   `loopSpawn` positions are validated at load (same check as rule 4); the clamp is
   the runtime safety net.
+
+- **If the player is inside a room absent from the dollhouse** (an `ANOMALY` room
+  after reveal — never on the map): the dollhouse **hides the player-position marker**
+  entirely; the instrument reports it has lost the player. No marker is drawn at a
+  fabricated position — the absence is the horror.
+
+- **If a loop teleport fires while the position marker is lagged** (`desync_delay > 0`):
+  the real position jumps to `loopTarget`, but the lagged marker keeps rendering the
+  pre-loop trail until the delay elapses. The map is briefly wrong about *both* which
+  room the player is in and how they got there — intended, not corrected.
+
+- **If a `loopable` door is already `ARMED` when `session:end` fires** (state →
+  `SEALED`): crossing it after SEALED emits **no** `floorplan:loop`. SEALED freezes
+  loops regardless of prior arm state (AC-E05).
+
+- **If a `PropertyLayout` has zero `STANDARD` rooms** (coverage denominator
+  degenerate): reject at load, same path as a door-width failure — guarantees `S ≥ 1`
+  for the coverage formula. (Mirrors Scan Node AC-SN15's S=0 guard.)
+
+- **If `w_t` and `w_c` are both 0** (invalid weights): fall back to 0.5/0.5 and log a
+  warning at load. Weights are absolute; `w_t + w_c` must be > 0.
 
 ## Dependencies
 
@@ -336,7 +372,8 @@ the renderer GDD's pattern.
 | `D0` (base desync delay) | 2.0 s | 0–10 | Map is unreliable from the first minute — no trust to lose, §8 fall has no height | Map is perfectly live early; fine, but no "instrument lag" texture |
 | `D_max` (max desync delay) | 25.0 s | 10–120 | Map effectively frozen late; reads as broken rather than degrading | Late-game map still trustworthy; perception-stripping payoff never lands |
 | `loop_trigger_tier` | `NEAR` | `MEDIUM`–`ADJACENT` | At `MEDIUM`/`FAR` loops fire constantly; disorientation becomes noise, not dread | At `ADJACENT` loops almost never arm; §15-C2 looping rarely seen |
-| `loop_cooldown` (global) | 8.0 s | 2–30 | Loops too rare; the "corridor returns you" effect underused | Loop ping-pong; rapid re-teleport causes nausea / near-softlock |
+| `loop_cooldown` (per-door) | 8.0 s | 2–30 | Loops too rare; the "corridor returns you" effect underused | Loop ping-pong; rapid re-teleport causes nausea / near-softlock |
+| `loop_arm_floor` (min `e` to arm any loop) | 0.4 | 0–0.7 | Loops arm only very late; §15-C2 looping rarely seen | Loops arm almost immediately — fire before the player has trust to lose, read as a bug |
 
 **Per-layout authoring values** (not global knobs — set per `PropertyLayout` in the
 pool): `revealTriggerNodeId` (which node reveals each anomaly room), which doors are
@@ -353,6 +390,12 @@ sliders.
   cooldown is the chaos zone — tune them as a pair in playtest.
 - `loop_trigger_tier` reads the same proximity tiers the renderer/entity use
   (`FAR/MEDIUM/NEAR/ADJACENT`) — it does not define its own bands.
+- `loop_arm_floor` gates the *first* loop on escalation `e` (Formula 1), independent
+  of proximity — a fast non-scanner reaches it via time, a thorough one via coverage.
+  Keep it ≥ 0.3 so loops never precede the trust they subvert.
+- `D_max` sanity: if `D_max > T_session / 10` the dollhouse updates fewer than ~10
+  times across a full session (reads as frozen). Log a warning at load; verify it is
+  intentional — the range allows up to 120 s but that is rarely sane.
 
 ## Visual/Audio Requirements
 
@@ -395,8 +438,25 @@ dollhouse panel. Floor Plan owns the data; UI owns the pixels.
 - **Coverage framing:** Floor Plan supplies raw room/node counts; the UI's coverage
   ring (§10) reads them and — per §15-H — frames higher coverage as "good." Floor
   Plan provides numbers, UI owns the (misleading) framing.
-- **Update triggers:** `floorplan:update`, `scan:complete` (applied only after
-  `desync_delay`), and player movement.
+- **Update triggers:** `floorplan:update`, `scan:complete` (scan-state applied only
+  after `desync_delay`), and player movement (position marker applied after
+  `desync_delay`).
+- **Position marker (lagged):** the dollhouse player-position marker is driven by Floor
+  Plan's lagged position (Core Rule 6 / Formula 2), not the live transform. Hidden
+  entirely while the player is in a room absent from the map (anomaly).
+- **Diegetic "instrument, not bug" priming (requirement):** because the map lies, the
+  player must read inaccuracy as *instrument failure* (found-footage), not a software
+  bug. The HUD / Found-Footage layer MUST provide a diegetic frame for stale data —
+  e.g. a `SPATIAL DATA: CACHED (LAST SYNC …)` label or session-start log. Floor Plan
+  *requires this framing exist*; the visual execution is owned by the dollhouse UX spec.
+- **`nodesCompleted` 12/12 + `coverage` 92% dissonance** (from Scan Node) likewise
+  needs a diegetic treatment (e.g. a `SPATIAL INDEX MISMATCH` log) so it reads as
+  scanner corruption, not a math error. Resolve in the HUD GDD with `creative-director`.
+- **Room mask transition (cross-system contract — unowned):** the rule mapping
+  node-level scan state → room-level mask (`KNOWN_STALE`/`KNOWN_CURRENT`) is owned by
+  neither GDD. Resolve and register it in `design/ux/dollhouse.md`.
+- **Coverage ring deception must carry a non-colour channel** (fill level / label) so
+  the false comfort lands for colourblind players. Owned by the dollhouse UX spec.
 
 > **📌 UX Flag — Floor Plan System**: the dollhouse map is a UI surface. In
 > Pre-Production, run `/ux-design` for the dollhouse panel before writing epics; UI
@@ -405,9 +465,12 @@ dollhouse panel. Floor Plan owns the data; UI owns the pixels.
 
 ## Acceptance Criteria
 
-> 23 criteria. Logic/Integration = **BLOCKING**, Visual/Perf = **ADVISORY** — *no
-> ADVISORY items in this system: Floor Plan emits data and renders no pixels (visual
-> outcomes live in the renderer/FPS/UI GDDs).*
+> 34 criteria (re-review 2026-06-27 added AC-D02/D03/D07, AC-L06–L09, AC-E09–E11 and
+> reworked AC-C02/C05/C06, AC-D04/D06, AC-L01/L02/L05/E05). Logic/Integration =
+> **BLOCKING**; no ADVISORY items — Floor Plan emits data and renders no pixels.
+> **Coverage contract:** the end-to-end test that `session_escalation` consumes the
+> exact `coverage` Scan Node emits is **AC-SN22** (owned by Scan Node; write once #5/#6
+> exist). Any story gating on `e` is blocked until AC-SN22 passes.
 
 ### Core Rules
 
@@ -417,10 +480,12 @@ initialises, THEN the first `floorplan:update` contains exactly the `STANDARD`
 rooms; no `ANOMALY`/`LOCKED` geometry is present. **BLOCKING**
 
 **AC-C02 — Floor Plan emits, never mutates the player transform**
-GIVEN a loop fires, WHEN Floor Plan resolves it in frame F, THEN it emits
-`floorplan:loop {targetPosition, targetYaw}` and the player transform is
-**byte-identical before and after Floor Plan's handler in frame F**; the position
-changes only on FPS Movement's subsequent tick. **BLOCKING**
+GIVEN a loop fires, WHEN Floor Plan's loop handler runs, THEN it emits
+`floorplan:loop {targetPosition, targetYaw}` and the passed-in player transform
+(`position` x/y/z and `rotation`/yaw) is **unchanged after the handler returns** —
+equal field-by-field to the values before the call; the position changes only on FPS
+Movement's subsequent tick. *(Unit-testable: snapshot `{x,y,z,yaw}` before/after the
+synchronous handler.)* **BLOCKING**
 
 **AC-C03 — Dollhouse view model excludes anomaly rooms**
 GIVEN an anomaly room transitioned to `REVEALED` via its trigger, WHEN the dollhouse
@@ -434,15 +499,17 @@ emitted. **BLOCKING**
 
 **AC-C05 — Anomaly reveal on trigger node**
 GIVEN an anomaly room with `revealTriggerNodeId = N`, WHEN `scan:complete {nodeId:
-N}` arrives, THEN within the same frame the door unseals, a `floorplan:update` with
-its geometry is emitted, and `floorplan:reveal {roomId}` fires; the dollhouse is
-**not** updated. **BLOCKING**
+N}` arrives, THEN **synchronously within the handler** the door unseals, a
+`floorplan:update` with its geometry is emitted, and `floorplan:reveal {roomId}`
+fires (all three before the handler returns); the dollhouse is **not** updated.
+**BLOCKING**
 
 **AC-C06 — Mutations emit one full-set update**
-GIVEN any geometry mutation (reveal or loop), WHEN Floor Plan emits, THEN it emits
-exactly **one** `floorplan:update` carrying the **full current room set** (not a
-delta/partial) within a single frame. *(Renderer single-frame BASE rebuild is
-covered by renderer AC-E04.)* **BLOCKING**
+GIVEN any geometry mutation (reveal or loop), WHEN Floor Plan's mutation handler
+runs, THEN it emits exactly **one** `floorplan:update` carrying the **full current
+room set** (not a delta/partial), synchronously per mutation call (spy on the bus:
+call count = 1). *(Renderer single-frame BASE rebuild is covered by renderer
+AC-E04.)* **BLOCKING**
 
 **AC-C07 — Dollhouse holds estimated node positions under real-node movement**
 GIVEN a room whose `estimatedNodePositions[i]` differs from the Scan Node System's
@@ -457,32 +524,50 @@ THEN the marker is at `estimatedNodePositions[i]` (±0.001 m); AND a subsequent
 GIVEN `T_session=1500`, `w_t=w_c=0.5`, WHEN `t=375`, `coverage=0.25`, THEN `e=0.25`
 (±0.001). **BLOCKING**
 
-**AC-D02 — Desync delay curve, with monotonicity**
-GIVEN `D0=2.0`, `D_max=25.0`, WHEN `e=0.5` THEN `desync_delay=7.75 s` (±0.01); WHEN
-`e=0.9` THEN `=20.63 s` (±0.01); AND for sample pairs `(e=0.2 → 2.92)` < `(e=0.6 →
-10.28)` < `(e=0.9 → 20.63)`, confirming `e1<e2 ⇒ delay(e1)<delay(e2)`. **BLOCKING**
+**AC-D02 — Escalation boundaries and clamp**
+GIVEN `w_t=w_c=0.5`, WHEN `t=0, coverage=0` THEN `e=0.0`; WHEN `t=T_session,
+coverage=1.0` THEN `e=1.0`; WHEN `t=2×T_session, coverage=1.0` (overrun) THEN `e=1.0`
+(clamp holds, not >1). **BLOCKING**
 
-**AC-D03 — Desync defers map update (boundary inclusive)**
-GIVEN a room scanned at `t0` with current `desync_delay=8 s`, WHEN the dollhouse is
-queried at `t0+5 s` THEN it reads un-scanned (`KNOWN_STALE`); WHEN queried at `t ≥
-t0+8 s` THEN it reads scanned (`KNOWN_CURRENT`). **BLOCKING**
+**AC-D03 — Weights are absolute, sum enforced, both-zero guarded**
+GIVEN `w_t=0.0, w_c=0.0` configured, WHEN loaded, THEN weights fall back to 0.5/0.5
+and a warning is logged; AND given any valid config, `w_t + w_c = 1` holds (out-of-sum
+input is a load-time error, not silently renormalized). **BLOCKING**
 
-**AC-D04 — Desync is derived from escalation and grows over the session**
-GIVEN Formula 1/2 defaults, WHEN a room is scanned at escalation `e=0.25` and another
-at `e=0.90`, THEN the first holds `KNOWN_STALE` for `desync_delay ≈ 3.44 s` (±0.01)
-and the second for `≈ 20.63 s` (±0.01), confirming a later (higher-`e`) scan lags
-strictly longer. **BLOCKING**
+**AC-D04 — Desync delay curve (cubic), with monotonicity**
+GIVEN `D0=2.0`, `D_max=25.0`, WHEN `e=0.5` THEN `desync_delay=4.88 s` (±0.01); WHEN
+`e=0.9` THEN `=18.77 s` (±0.01); AND for sample pairs `(e=0.2 → 2.18)` < `(e=0.6 →
+6.97)` < `(e=0.9 → 18.77)`, confirming `e1<e2 ⇒ delay(e1)<delay(e2)`. **BLOCKING**
+
+**AC-D05 — Desync defers map update (boundary inclusive)**
+GIVEN a room/marker desynced at `t0` with current `desync_delay=8 s`, WHEN the
+dollhouse is queried at `t0+5 s` THEN it reads the stale state (`KNOWN_STALE` / lagged
+position); WHEN queried at `t ≥ t0+8 s` (comparison is `≥`) THEN it reads current
+(`KNOWN_CURRENT` / live position). **BLOCKING**
+
+**AC-D06 — Desync grows over the session (derived from escalation)**
+GIVEN Formula 1/2 defaults, WHEN a sample is taken at escalation `e=0.25` and another
+at `e=0.90`, THEN the first lags `desync_delay ≈ 2.36 s` (±0.01) and the second
+`≈ 18.77 s` (±0.01), confirming a later (higher-`e`) sample lags strictly longer.
+**BLOCKING**
+
+**AC-D07 — Zero base delay updates instantly**
+GIVEN `D0=0`, WHEN `e=0`, THEN `desync_delay=0` and a `scan:complete` / position
+update is reflected in the same handler (no stale window, no error). **BLOCKING**
 
 ### Looping
 
-**AC-L01 — Armed loop teleports on threshold crossing**
-GIVEN an `ARMED` loop door (proximity ≥ `loop_trigger_tier`, `loopTarget`
-`REVEALED`), WHEN the player crosses from the non-loop side, THEN `floorplan:loop`
-is emitted with the target `loopSpawn`, and the door enters `COOLDOWN`. **BLOCKING**
+**AC-L01 — Armed loop teleports on threshold crossing (proximity arm)**
+GIVEN an `ARMED` loop door (proximity ≥ `loop_trigger_tier`, `e ≥ loop_arm_floor`,
+`loopTarget` `REVEALED`), WHEN the player's camera position crosses from the non-loop
+side, THEN `floorplan:loop` is emitted with the target `loopSpawn`, and the door
+enters per-door `COOLDOWN`. **BLOCKING**
 
-**AC-L02 — Cooldown prevents ping-pong**
-GIVEN a loop fired at `t0`, `loop_cooldown=8 s`, WHEN any loop would fire at `t0+3 s`
-THEN none is emitted; at `t0+8 s` or later it is allowed. **BLOCKING**
+**AC-L02 — Per-door cooldown prevents ping-pong but does not block other doors**
+GIVEN door A looped at `t0`, `loop_cooldown=8 s`, WHEN door A would re-fire at `t0+3 s`
+THEN none is emitted (at `t0+8 s` or later it is allowed); AND given a distinct armed
+door B, crossing B at `t0+3 s` **does** emit its loop — A's cooldown does not "safe"
+B. **BLOCKING**
 
 **AC-L03 — Loop suppressed during active scan**
 GIVEN an `ARMED` door and `SCAN_LOCKED`, WHEN the scan is in progress, THEN no
@@ -494,9 +579,33 @@ GIVEN an `ARMED` door whose `loopTarget` is `HIDDEN`, WHEN the player crosses it
 THEN no loop fires and the door routes to its real neighbour. **BLOCKING**
 
 **AC-L05 — No retroactive loop for a player already on the threshold**
-GIVEN a player standing inside a `loopable` door's threshold AABB, WHEN that door
-ARMS without the player having exited and re-entered, THEN no `floorplan:loop` fires;
-it fires only on a subsequent fresh crossing from the non-loop side. **BLOCKING**
+GIVEN the player's **camera position** is already inside a `loopable` door's threshold
+AABB, WHEN that door ARMS without the camera having exited and re-entered, THEN no
+`floorplan:loop` fires; it fires only on a subsequent fresh crossing (camera enters
+the AABB from the non-loop side). **BLOCKING**
+
+**AC-L06 — Loop arms via anomaly reveal (second arm path)**
+GIVEN a `loopable` door `DORMANT` with `e ≥ loop_arm_floor`, WHEN `floorplan:reveal`
+for its `loopTarget` room fires, THEN the door enters `ARMED`, and a subsequent fresh
+crossing emits `floorplan:loop`. **BLOCKING**
+
+**AC-L07 — Escalation floor blocks early loops**
+GIVEN a `loopable` door whose proximity/reveal condition is met but `e <
+loop_arm_floor`, WHEN evaluated, THEN the door stays `DORMANT` and no loop fires; once
+`e ≥ loop_arm_floor` the same condition arms it. **BLOCKING**
+
+**AC-L08 — Proximity arm clears to DORMANT; anomaly arm persists**
+GIVEN a door `ARMED` solely by `entity:proximity ≥ loop_trigger_tier`, WHEN proximity
+drops below the tier before the player crosses, THEN the door returns to `DORMANT`;
+GIVEN a door `ARMED` by anomaly reveal, WHEN proximity changes, THEN it stays
+arm-eligible (reveal is permanent) and re-arms after each per-door cooldown while
+`e ≥ loop_arm_floor`. **BLOCKING**
+
+**AC-L09 — Reveal and loop in the same tick: reveal first**
+GIVEN a `scan:complete` that triggers a reveal AND a loop crossing resolve in the same
+tick, WHEN processed, THEN the `floorplan:update` (reveal geometry) is emitted
+**before** the `floorplan:loop` — the player is never repositioned into geometry not
+yet emitted that tick. **BLOCKING**
 
 ### State & Edge
 
@@ -519,11 +628,12 @@ GIVEN a seed resolving to a `propertyId` not in the pool, WHEN init runs, THEN a
 random valid layout is selected, a warning logged, and the session starts normally.
 **BLOCKING**
 
-**AC-E05 — SEALED freezes all mutations**
+**AC-E05 — SEALED freezes all mutations (incl. already-armed doors)**
 GIVEN state = `SEALED` (after `session:end`), WHEN a `scan:complete` for an
-un-revealed anomaly's trigger OR an `entity:proximity ≥ loop_trigger_tier` arrives,
-THEN Floor Plan emits **no** `floorplan:update`/`reveal`/`loop`; geometry and
-dollhouse are frozen. **BLOCKING**
+un-revealed anomaly's trigger OR an `entity:proximity ≥ loop_trigger_tier` arrives, OR
+the player crosses a door that was already `ARMED` before SEALED, THEN Floor Plan emits
+**no** `floorplan:update`/`reveal`/`loop`; geometry and dollhouse are frozen.
+**BLOCKING**
 
 **AC-E06 — loopSpawn clamp safety net**
 GIVEN a `loopable` door whose `loopSpawn.position` lies outside the target room's
@@ -542,6 +652,20 @@ GIVEN two `REVEALED` rooms with intentionally overlapping AABBs, WHEN
 `floorplan:update` is emitted, THEN both rooms' geometry is present in the room set;
 Floor Plan does not merge, dedup, or separate them. **BLOCKING**
 
+**AC-E09 — Position marker is lagged, not live**
+GIVEN `desync_delay = D` at the current `e`, WHEN the dollhouse view model is queried,
+THEN the player-position marker equals the player's real position from `D` seconds ago
+(±0.001 m), not the live transform; at `D=0` it equals the live position. **BLOCKING**
+
+**AC-E10 — Position marker hidden in an unmapped room**
+GIVEN the player is inside an `ANOMALY` room (revealed, never on the dollhouse), WHEN
+the view model is queried, THEN it contains **no** player-position marker (absent, not
+placed at a fabricated location). **BLOCKING**
+
+**AC-E11 — Zero-STANDARD layout rejected at load**
+GIVEN a `PropertyLayout` with zero `STANDARD` rooms, WHEN validated at load, THEN it is
+rejected (same path as AC-C04) so `S ≥ 1` is guaranteed for coverage. **BLOCKING**
+
 ## Open Questions
 
 1. **Loop teleport comfort / motion sickness** — threshold teleport is
@@ -549,11 +673,10 @@ Floor Plan does not merge, dedup, or separate them. **BLOCKING**
    validate `loop_cooldown` (8 s) and loop frequency feel comfortable, and whether a
    masking playback hitch (Found-Footage §16-F3) is *required* vs. optional.
    *Owner: playtester. Resolve during vertical slice.*
-2. **Escalation inputs (`e`)** — Formula 1 reads `coverage` (from Scan Node) and
-   elapsed `t`. Open: does `t` pause during scans/menus, and exactly how is
-   `coverage` defined (standard nodes only, or all)? Depends on Orchestrator + Scan
-   Node contracts. *Owner: lead-programmer. Resolve when the Orchestrator GDD is
-   authored.*
+2. **Escalation inputs (`e`)** — *Partially resolved:* `coverage = V/S` is now defined
+   by the Scan Node GDD (registry: `coverage`; S = count(STANDARD)+1 anomaly node).
+   Still open: does `t` pause during scans/menus? Depends on Orchestrator. *Owner:
+   lead-programmer. Resolve when the Orchestrator GDD is authored.*
 3. **Curated-pool authoring pipeline** — §8 sources layouts from real Matterport
    scans. How a scan becomes a `PropertyLayout` (rooms, AABBs, door graph, node
    positions, anomaly/loop tags) is unspecified — manual authoring vs. tooling.
@@ -565,3 +688,14 @@ Floor Plan does not merge, dedup, or separate them. **BLOCKING**
 5. **`floorplan:loop` application owner** — this GDD assigns the teleport to FPS
    Movement. Confirm against the Orchestrator design (could route through it
    instead). *Owner: lead-programmer. Resolve when the Orchestrator GDD is authored.*
+6. **§15-C2 subtle-difference injection** — the loop's emotional payload (recognising
+   the same-but-wrong room) is owned by the renderer/Entity System and is currently
+   only a section reference, not an authored spec. Loop horror cannot be playtested
+   until it exists. *Owner: technical-artist / Entity System. Assign a stub spec when
+   Entity (#9) is designed; resolve before the loop vertical-slice.*
+
+> **Re-review 2026-06-27 resolved (design-review, 5 agents):** desync now lags the
+> **player-position marker** (not just the scan-state icon); desync curve `e²→e³`;
+> `loop_cooldown` is **per-door**; added `loop_arm_floor` (escalation floor on loop
+> arming); anomaly-reveal arm clear path defined; weight semantics fixed to absolute;
+> S=0 / both-zero / D0=0 guards added; 11 ACs added/reworked.

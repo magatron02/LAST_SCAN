@@ -6,6 +6,43 @@ any machine.
 
 ---
 
+## 2026-06-27 — Floor Plan GDD design-review (full) → MAJOR REVISION → revised
+
+**What got done**
+- Ran `/design-review design/gdd/floor-plan-system.md` in **full mode** — 4 adversarial
+  specialists (game-designer, systems-designer, qa-lead, ux-designer) + creative-director
+  synthesis. (Agents first died on a session-limit reset → resumed via SendMessage with
+  context intact, not respawned.)
+- **Verdict: MAJOR REVISION NEEDED.** Convergence across all 4 domains: Section B (Player
+  Fantasy) promised horror the mechanics didn't deliver. Highest-confidence blocker (3/4
+  reviewers): anomaly-reveal loop arm was permanent with no defined ARMED→DORMANT path.
+- **Revised same session** (4 user decisions), then logged + index updated.
+
+**Floor Plan revision — key decisions**
+- Desync now lags the **player-position marker** (+ scan-state), not just the scan-state
+  icon — this is what makes the anchor moment ("a room you already left") actually fire.
+- Loop arming gated by **`loop_arm_floor`** (escalation floor, default 0.4); anomaly-reveal
+  arm **re-arms above floor** after a **per-door** cooldown (was global → exploit closed).
+- Desync curve **e² → e³** (truthful early, sharp late). Registry `desync_delay` expr updated.
+- Weights made absolute (`w_t+w_c=1`, both-zero fallback). Coverage def pinned → closes
+  floor-plan Open Q#2 (Scan Node owns `coverage = V/S`).
+- **AC 23 → 34**: reworked untestable ACs (byte-identical / within-a-frame → unit-scope),
+  added arm-by-reveal, clamp, normalization, per-door, position-marker, S=0/D0=0 guards.
+- Deferred to dollhouse UX spec: access paradigm, KNOWN_STALE/CURRENT visual diff, marker
+  visuals, colourblind coverage-ring. Open Q#6 added (§15-C2 loop-payload owner).
+
+**State**
+- Floor Plan status = **In Review (revised, re-review pending)**. Review log created:
+  `design/gdd/reviews/floor-plan-system-review-log.md`.
+- Scan Node (#4) still unreviewed.
+
+**Next step**
+- `/clear` → `/design-review design/gdd/floor-plan-system.md` (independent re-review, fresh
+  session — expected to clear). Then review Scan Node (#4), `/consistency-check`, then
+  `/design-system` Orchestrator (#5).
+
+---
+
 ## 2026-06-27 — Scan Node System GDD complete (MVP 4/9)
 
 **Cross-machine note**

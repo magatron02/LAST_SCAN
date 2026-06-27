@@ -1,13 +1,25 @@
 # Active Session State
 
-**Task:** Scan Node System GDD (#4) — COMPLETE
-**Status:** All 8 sections + Visual/Audio + UI + Open Questions written & approved
-**File:** design/gdd/scan-node-system.md
-**Review mode:** lean
+**Task:** Floor Plan GDD (#3) — design-review DONE (full, 5 agents) → MAJOR REVISION → revised same session
+**Status:** Revisions applied; **independent re-review pending in a FRESH session**
+**File:** design/gdd/floor-plan-system.md · review log: design/gdd/reviews/floor-plan-system-review-log.md
+**Review mode:** full (design-review)
 
-**Previous:** Floor Plan, FPS Movement, Point Cloud Renderer GDDs complete
+**Previous:** Scan Node (#4), Floor Plan, FPS Movement, Point Cloud Renderer GDDs complete
 
-**Note:** #4 restarted fresh on desktop (old Legion session abandoned — never pushed)
+## Floor Plan re-review — IMMEDIATE NEXT
+- `/clear` then `/design-review design/gdd/floor-plan-system.md` (fresh = independent; this is a re-review, log exists)
+- CD verdict was MAJOR REVISION NEEDED; all 6 blocking + recommended addressed — expected to clear
+
+## Floor Plan revisions applied (2026-06-27) — user decisions
+- desync lags **player-position marker** (+ scan-state) — fixes anchor-moment gap (was icon-only)
+- anomaly-reveal loop arm: **re-arm above escalation floor** (`loop_arm_floor`=0.4); ARMED→DORMANT defined
+- desync curve **e² → e³** (truthful early / sharp late); registry desync_delay expr updated
+- `loop_cooldown` **per-door** (was global — closed exploit)
+- weights absolute (w_t+w_c=1, both-zero fallback); coverage def pinned (closes floor-plan Open Q#2)
+- AC 23 → 34; guards: S=0 reject, D0=0 instant, ARMED-at-SEALED, unmapped-room marker hidden
+- Deferred to dollhouse UX spec: access paradigm, STALE/CURRENT visual, marker visuals, colourblind ring
+- Open Q#6 added (§15-C2 owner). Coverage contract = AC-SN22 (owned by Scan Node)
 
 ## Scan Node — key decisions
 - Scan Node = sole node-state authority; emits canonical scan:complete / scan:abort
@@ -27,10 +39,11 @@
 - ✓ Point Cloud Renderer · ✓ FPS Movement · ✓ Floor Plan · ✓ Scan Node
 
 ## Next
-- `/design-review` (fresh session) on floor-plan + scan-node (both unreviewed)
-- `/consistency-check` to verify values across 4 GDDs
-- Then `/design-system` Orchestrator (#5) — event bus convergence for floorplan:* / scan:* / entity:proximity
-- Then Scan Mechanic (#6)
+- **1. `/clear` → `/design-review design/gdd/floor-plan-system.md` (re-review, fresh session)**
+- 2. `/design-review design/gdd/scan-node-system.md` (#4 still unreviewed)
+- 3. `/consistency-check` across 4 GDDs (re-check after floor-plan revision: e³ curve, coverage)
+- 4. Then `/design-system` Orchestrator (#5) — event bus convergence floorplan:* / scan:* / entity:proximity
+- 5. Then Scan Mechanic (#6)
 
 ## Key decisions this session (Floor Plan)
 - Layout source: **curated pool of authored layouts** + runtime perception-stripping mutations (not procedural geo)

@@ -32,7 +32,7 @@ UI, no jump scares, horror from the familiar made wrong, a found-footage cycle.
 |---|-------------|----------|----------|--------|------------|------------|
 | 1 | Point Cloud Renderer | Core | MVP | Designed | design/gdd/point-cloud-renderer.md | — |
 | 2 | FPS Movement | Core | MVP | Designed | design/gdd/fps-movement.md | — |
-| 3 | Floor Plan System | Gameplay | MVP | Designed | design/gdd/floor-plan-system.md | Point Cloud Renderer |
+| 3 | Floor Plan System | Gameplay | MVP | In Review (revised, re-review pending) | design/gdd/floor-plan-system.md | Point Cloud Renderer |
 | 4 | Scan Node System | Gameplay | MVP | Designed | design/gdd/scan-node-system.md | Floor Plan System |
 | 5 | Persistence (localStorage) (inferred) | Persistence | Alpha | Not Started | — | — |
 | 6 | Audio System | Audio | Vertical Slice | Not Started | — | Entity System |
@@ -154,7 +154,7 @@ UI, no jump scares, horror from the familiar made wrong, a found-footage cycle.
 |--------|-------|
 | Total systems identified | 13 |
 | Design docs started | 4 |
-| Design docs reviewed | 0 |
+| Design docs reviewed | 1 (Floor Plan — MAJOR REVISION, revised, re-review pending) |
 | Design docs approved | 0 |
 | MVP systems designed | 4 / 9 |
 | Vertical Slice systems designed | 0 / 2 |
