@@ -36,7 +36,7 @@ UI, no jump scares, horror from the familiar made wrong, a found-footage cycle.
 | 4 | Scan Node System | Gameplay | MVP | Approved (round 4 independent re-review, 2026-07-01) | design/gdd/scan-node-system.md | Floor Plan System |
 | 5 | Persistence (localStorage) (inferred) | Persistence | Alpha | Not Started | — | — |
 | 6 | Audio System | Audio | Vertical Slice | Not Started | — | Entity System |
-| 7 | Session/Game State Orchestrator (inferred) | Core | MVP | Not Started | — | Point Cloud, FPS Movement, Scan Node |
+| 7 | Session/Game State Orchestrator (inferred) | Core | MVP | Designed | design/gdd/orchestrator.md | Point Cloud, FPS Movement, Scan Node |
 | 8 | Scan Mechanic | Gameplay | MVP | Not Started | — | FPS Movement, Scan Node, Point Cloud, Orchestrator |
 | 9 | Entity System | Gameplay | MVP | Not Started | — | Point Cloud, Floor Plan, Orchestrator |
 | 10 | Win/Lose & Ending | Gameplay | MVP | Not Started | — | Scan Node, Entity System, Orchestrator |
@@ -153,10 +153,10 @@ UI, no jump scares, horror from the familiar made wrong, a found-footage cycle.
 | Metric | Count |
 |--------|-------|
 | Total systems identified | 13 |
-| Design docs started | 4 |
+| Design docs started | 5 |
 | Design docs reviewed | 2 (Floor Plan — Approved 2026-06-30; Scan Node — Approved 2026-07-01) |
 | Design docs approved | 2 (Floor Plan System, Scan Node System) |
-| MVP systems designed | 4 / 9 |
+| MVP systems designed | 5 / 9 |
 | Vertical Slice systems designed | 0 / 2 |
 
 ---

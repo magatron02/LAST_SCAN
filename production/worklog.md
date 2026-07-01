@@ -6,6 +6,50 @@ any machine.
 
 ---
 
+## 2026-07-01 — Orchestrator GDD COMPLETE (MVP 5/9); 19-event family registered
+
+**What got done (this session, Legion):** finished the Orchestrator (#5) GDD — the last
+4 sections that were `[To be designed]` — and ran Phase 5. Orchestrator is now **Designed,
+pending independent `/design-review`**.
+
+**Sections completed**
+- Visual/Audio + UI Requirements — both **N/A** (pure infrastructure; no pixels/audio/UI
+  surface of its own).
+- **Acceptance Criteria — 30, qa-lead validated.** qa-lead review returned NEEDS REVISION
+  and caught the project's recurring patterns: 2 placeholders that named a guarantee without
+  testing it (AC-OR02 cut, AC-OR05 rewritten as a real terminal-state test), and 4
+  "rules-don't-compose" gaps (added AC-OR23 post-SEAL-drop × late-SEALED-subscriber same
+  frame; AC-OR14 override-chain × unrelated FIFO; AC-OR29 late subscriber mid-override;
+  AC-OR11 adversarial interleave). Added Logic/Integration labels per sibling-GDD convention.
+- Open Questions — 5 (provisional-flag cleanup, Win/Lose trigger source, entity tier vocab,
+  Rule-5 lint tooling, referenced_by maintenance).
+
+**Key design decisions locked**
+- Orchestrator = registration-not-invention; sole owner of `LOADING/ACTIVE/SEALED` lifecycle;
+  `session:request_end{reason}` intake decouples "who decides game-over" from enforcement.
+- Global FIFO + registered per-pair ordering overrides (Floor Plan AC-L09, Scan Node AC-SN29,
+  Point Cloud AC-E02); stable-sort so 3-chains + unrelated events resolve correctly.
+- latest-value cache vs discrete fire-and-forget (Core Rule 7); `session:end` sole cached
+  discrete exception.
+- **`floorplan:init` 2nd fire → REJECTED** (AC-OR21) — protects Scan Node's roster/coverage-
+  denominator invariant at the bus level, not just by convention.
+
+**Phase 5 — registry**
+- entities.yaml: NEW **`events:` section, 19 cross-system events** registered with producer /
+  consumers / payload shape / kind (latest-value vs discrete). 3 Orchestrator-owned
+  (session:tick, session:end, session:request_end); 5 provisional (producers Scan Mechanic #8
+  / Entity #9 undesigned). YAML parses clean (19 events, 3 formulas, 15 constants).
+- systems-index: Orchestrator #7 → Designed; **MVP 5/9**; docs started 5.
+- GDD status header → "Designed (pending independent /design-review)".
+
+**Next step**
+- `/design-review design/gdd/orchestrator.md` in a **fresh session** (sibling GDDs each took
+  4 review rounds — budget for revision). Then `/consistency-check` (new `events:` section).
+- After Orchestrator approval: Scan Mechanic (#6), Entity (#9). Provisional-flag cleanup pass
+  on the 4 sibling GDDs once Orchestrator is Approved.
+
+---
+
 ## 2026-07-01 — Floor Plan + Scan Node APPROVED; Orchestrator GDD 7/8 (in progress)
 
 **Big picture:** both previously-designed core GDDs are now **Approved** via multi-round

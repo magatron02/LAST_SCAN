@@ -33,11 +33,11 @@
 #   Deprecated entries:      Grep pattern="status: deprecated"
 #
 # FORMAT: YAML. Consistent indentation is critical for grep reliability.
-#   Sections: entities | items | formulas | constants
+#   Sections: entities | items | events | formulas | constants
 #   Each entry: name, status, source, referenced_by[], attributes{}, added, revised
 
 version: 1
-last_updated: "2026-06-30"  # floor-plan independent re-review: w_t<=0.8 cap, D0<D_max guard
+last_updated: "2026-07-01"  # Orchestrator #5: registered the 19-event cross-system family (new events: section)
 
 # ─── ENTITIES ────────────────────────────────────────────────────────────────
 # Named game-world objects: enemies, NPCs, characters, factions, bosses.
@@ -95,6 +95,179 @@ items: []
 #     category: crafting_material
 #     added: 2026-03-26
 #     revised: ""
+
+
+# ─── EVENTS ──────────────────────────────────────────────────────────────────
+# Cross-system events on the Orchestrator bus. The Orchestrator GDD (#5) is the
+# authoritative registry: no system may publish an event under a name this
+# section does not own, and no system may consume an event whose payload shape
+# contradicts what its producer declares here.
+#
+# Required fields: name, status, source (producer GDD), registered_by, consumers,
+#   payload, kind (latest-value | discrete), added
+#   - kind: latest-value = Orchestrator caches most recent, replays to late
+#     subscribers. discrete = fire-and-forget, never replayed (except session:end).
+#   - status: active = producer designed & approved. provisional = producer GDD
+#     not yet authored (shape inferred from consumers; producer must confirm).
+
+events:
+  # -- Orchestrator-owned (nothing produced these before #5) --
+  - name: session:tick
+    status: active
+    source: design/gdd/orchestrator.md
+    registered_by: design/gdd/orchestrator.md
+    consumers: [design/gdd/floor-plan-system.md]  # session_escalation elapsed-time input; + future timed systems
+    payload: "{elapsedSeconds}"
+    kind: latest-value
+    added: 2026-07-01
+  - name: session:end
+    status: active
+    source: design/gdd/orchestrator.md
+    registered_by: design/gdd/orchestrator.md
+    consumers: [design/gdd/floor-plan-system.md, design/gdd/scan-node-system.md]  # + Win/Lose #10
+    payload: "{} (transition marker)"
+    kind: discrete  # SOLE cached exception — delivered once to a subscriber joining during SEALED
+    added: 2026-07-01
+  - name: session:request_end
+    status: active
+    source: design/gdd/orchestrator.md  # intake; Orchestrator alone flips state + emits session:end
+    registered_by: design/gdd/orchestrator.md
+    consumers: [design/gdd/orchestrator.md]  # produced by any system; Win/Lose #10 primary caller
+    payload: "{reason}"
+    kind: discrete
+    added: 2026-07-01
+  # -- player / movement --
+  - name: player:position
+    status: active
+    source: design/gdd/fps-movement.md
+    registered_by: design/gdd/orchestrator.md
+    consumers: [design/gdd/floor-plan-system.md]  # + Entity #9, UI/HUD #12
+    payload: "{x, y, z}"
+    kind: latest-value
+    added: 2026-07-01
+  - name: movement:scan_triggered
+    status: provisional  # producer Scan Mechanic #8 undesigned
+    source: design/gdd/scan-mechanic.md
+    registered_by: design/gdd/orchestrator.md
+    consumers: [design/gdd/fps-movement.md]
+    payload: "{nodePosition}"
+    kind: discrete
+    added: 2026-07-01
+  # -- scan family --
+  - name: scan:coverage
+    status: active
+    source: design/gdd/scan-node-system.md  # canonical over scan:complete.coverage (Scan Node Cross-System Invariants)
+    registered_by: design/gdd/orchestrator.md
+    consumers: [design/gdd/floor-plan-system.md]  # session_escalation coverage input; + Win/Lose, UI/HUD
+    payload: "{coverage}  # level 0.0-1.0, not delta"
+    kind: latest-value
+    added: 2026-07-01
+  - name: scan:complete
+    status: active
+    source: design/gdd/scan-node-system.md
+    registered_by: design/gdd/orchestrator.md
+    consumers: [design/gdd/floor-plan-system.md, design/gdd/point-cloud-renderer.md, design/gdd/fps-movement.md]
+    payload: "{nodeId, coverage, ...}  # carries what Floor Plan needs to derive a reveal (AC-SN21)"
+    kind: discrete
+    added: 2026-07-01
+  - name: scan:abort
+    status: active
+    source: design/gdd/scan-node-system.md
+    registered_by: design/gdd/orchestrator.md
+    consumers: [design/gdd/point-cloud-renderer.md, design/gdd/fps-movement.md]
+    payload: "{nodeId}"
+    kind: discrete  # scan:complete takes priority if both queued same tick (Point Cloud AC-E02)
+    added: 2026-07-01
+  - name: scan:started
+    status: provisional  # producer Scan Mechanic #8 undesigned
+    source: design/gdd/scan-mechanic.md
+    registered_by: design/gdd/orchestrator.md
+    consumers: [design/gdd/scan-node-system.md]
+    payload: "{nodeId}"
+    kind: discrete
+    added: 2026-07-01
+  - name: scan:captured
+    status: provisional  # producer Scan Mechanic #8 undesigned
+    source: design/gdd/scan-mechanic.md
+    registered_by: design/gdd/orchestrator.md
+    consumers: [design/gdd/scan-node-system.md]
+    payload: "{nodeId, valid, entityInFrame}"
+    kind: discrete
+    added: 2026-07-01
+  - name: scan:capture_frame
+    status: provisional  # producer Scan Mechanic #8 undesigned
+    source: design/gdd/scan-mechanic.md
+    registered_by: design/gdd/orchestrator.md
+    consumers: [design/gdd/point-cloud-renderer.md]
+    payload: "{angle, progress}"
+    kind: discrete
+    added: 2026-07-01
+  - name: scan:integrity_warning
+    status: active
+    source: design/gdd/scan-node-system.md
+    registered_by: design/gdd/orchestrator.md
+    consumers: [design/gdd/floor-plan-system.md]  # + UI/HUD #12
+    payload: "{...}"
+    kind: discrete
+    added: 2026-07-01
+  - name: scan:integrity_failure
+    status: active
+    source: design/gdd/scan-node-system.md
+    registered_by: design/gdd/orchestrator.md
+    consumers: []  # Win/Lose #10, UI/HUD #12 (both undesigned)
+    payload: "{...}"
+    kind: discrete
+    added: 2026-07-01
+  # -- floorplan family --
+  - name: floorplan:init
+    status: active
+    source: design/gdd/floor-plan-system.md
+    registered_by: design/gdd/orchestrator.md
+    consumers: [design/gdd/scan-node-system.md]  # builds node roster + coverage denominator S from this
+    payload: "{roster, roomMapping}  # complete node roster incl. hidden ANOMALY_FINAL/NULL metadata"
+    kind: latest-value  # one-time; 2nd fire REJECTED, cached roster never changes (Orchestrator AC-OR21)
+    added: 2026-07-01
+  - name: floorplan:update
+    status: active
+    source: design/gdd/floor-plan-system.md
+    registered_by: design/gdd/orchestrator.md
+    consumers: [design/gdd/point-cloud-renderer.md, design/gdd/scan-node-system.md, design/gdd/fps-movement.md]
+    payload: "{rooms:[{id, aabb, surfaces}]}  # renderable geometry only; one emission per mutation (AC-C06)"
+    kind: discrete
+    added: 2026-07-01
+  - name: floorplan:reveal
+    status: active
+    source: design/gdd/floor-plan-system.md
+    registered_by: design/gdd/orchestrator.md
+    consumers: [design/gdd/scan-node-system.md]
+    payload: "{roomId}"
+    kind: discrete
+    added: 2026-07-01
+  - name: floorplan:loop
+    status: active
+    source: design/gdd/floor-plan-system.md
+    registered_by: design/gdd/orchestrator.md
+    consumers: [design/gdd/fps-movement.md]  # applies the teleport reposition
+    payload: "{targetPosition, targetYaw, toRoom}"
+    kind: discrete  # delivered AFTER floorplan:update when both same tick (Floor Plan AC-L09)
+    added: 2026-07-01
+  # -- entity / renderer --
+  - name: entity:proximity
+    status: provisional  # producer Entity #9 undesigned; tier vocab (4 vs 5) is Entity's decision
+    source: design/gdd/entity-system.md
+    registered_by: design/gdd/orchestrator.md
+    consumers: [design/gdd/point-cloud-renderer.md, design/gdd/floor-plan-system.md]  # + Audio #6, UI/HUD #12
+    payload: "{tier}"
+    kind: latest-value
+    added: 2026-07-01
+  - name: renderer:anomaly_density
+    status: active
+    source: design/gdd/point-cloud-renderer.md
+    registered_by: design/gdd/orchestrator.md
+    consumers: []  # UI/HUD #12 (undesigned)
+    payload: "{type, sigma}"
+    kind: discrete
+    added: 2026-07-01
 
 
 # ─── FORMULAS ────────────────────────────────────────────────────────────────

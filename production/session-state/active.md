@@ -1,6 +1,22 @@
 # Active Session State
 
-**Task:** Orchestrator (#5) GDD — **7 of 8 required sections written**, paused for quicksave
+**Task:** Orchestrator (#5) GDD — **COMPLETE**. All 8 required sections + Visual/Audio
++ UI + Open Questions written. 30 acceptance criteria (qa-lead validated). Phase 5 done:
+registered 19-event family in entities.yaml (new `events:` section), systems-index → 5/9.
+**Status: Designed — pending independent `/design-review` in a fresh session.**
+
+## Orchestrator Phase 5 completed (2026-07-01)
+- entities.yaml: NEW `events:` section, 19 events w/ producer/consumers/payload/kind
+  (latest-value vs discrete). 3 are Orchestrator-owned (session:tick/end/request_end);
+  5 provisional (Scan Mechanic #8, Entity #9 undesigned). YAML validated (parses clean).
+- systems-index: Orchestrator #7 row → Designed, tracker 5/9 MVP.
+- floorplan:init 2nd-fire decision: REJECT (AC-OR21) — protects Scan Node roster invariant.
+- Open Q logged: provisional-flag cleanup on 4 sibling GDDs (post-approval), Win/Lose
+  trigger source, entity tier vocab, Rule-5 lint tooling.
+- NEXT: `/design-review design/gdd/orchestrator.md` in a FRESH session. Then Scan
+  Mechanic (#6), Entity (#9). Consider `/consistency-check` (new events section).
+
+## [prior] Orchestrator authoring — DONE
 **Status:** Floor Plan + Scan Node both Approved. Consistency-check PASS (0 conflicts, 5 GDDs).
 Orchestrator authoring in progress via `/design-system` — resume from Acceptance Criteria.
 **File:** `design/gdd/orchestrator.md`

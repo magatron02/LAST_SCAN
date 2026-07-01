@@ -1,6 +1,6 @@
 # Session/Game State Orchestrator
 
-> **Status**: In Design
+> **Status**: Designed (pending independent `/design-review`)
 > **Author**: magatron02 + agents
 > **Last Updated**: 2026-07-01
 > **Implements Pillar**: Foundation/Infrastructure — enables every other pillar mechanically
@@ -318,16 +318,271 @@ Orchestrator is deliberately knob-free at the gameplay level.
 
 ## Visual/Audio Requirements
 
-[To be designed]
+This system produces **no visual or audio output of any kind.** It is the message
+bus and session-state machine — every visible/audible effect belongs to the system
+that owns the data being relayed (Point Cloud Renderer's colours, Floor Plan's
+dollhouse, future UI/HUD's error messages, future Audio System's cues).
+Orchestrator's only observable "output" is *timing* — the order and cadence at
+which it delivers events — which is a Detailed Design / Acceptance Criteria
+concern, not a Visual/Audio one.
+
+*No art-director/audio-director consultation needed — Foundation/Infrastructure
+layer, no visual or audio surface exists to direct.*
 
 ## UI Requirements
 
-[To be designed]
+This system has **no UI surface of its own.** It exposes no screen, panel, or
+diegetic element. Its only interface is the publish/subscribe API other systems'
+code calls into — not a player-facing UI at all.
+
+*No `/ux-design` spec required for this system.*
 
 ## Acceptance Criteria
 
-[To be designed]
+> 30 criteria. **Logic** = pure bus mechanics, unit-testable with a fake
+> publisher/subscriber. **Integration** = encodes a cross-GDD contract (cites a
+> sibling GDD's own AC). Both gate levels are **BLOCKING** — no ADVISORY items;
+> Orchestrator has no visual/perf surface (matching Point Cloud/Floor Plan/Scan
+> Node precedent).
+>
+> **Core Rule 5** (no direct imports between gameplay systems) has no AC here — it
+> is an architectural constraint enforced by code review / a static import-graph
+> check at implementation time, not a runtime-observable behavior. Not silently
+> dropped; explicitly out of AC scope.
+>
+> **`referenced_by` population** (Core Rule 6) is a documentation/registry-
+> maintenance concern tracked by the `/design-system` Phase 5 process, not a
+> runtime AC.
+
+### Registration & Interface Contract
+
+**AC-OR01 — Registry shapes match producing GDDs verbatim**
+GIVEN the Interface Registry entry for any event, WHEN compared against the
+"Interactions with Other Systems" table in that event's producing GDD, THEN the
+event name and payload field set are identical (no renamed fields, no added/
+dropped fields). **BLOCKING (Integration)**
+
+**AC-OR02 — Every Core Rule 1–7 has a registry entry**
+GIVEN the Interface Registry in `entities.yaml`, WHEN checked against Core Rules
+1–7 of this GDD, THEN every event named in any Core Rule (the full `session:*`,
+`scan:*`, `floorplan:*`, `entity:*`, `player:*`, `movement:*`, `renderer:*` family)
+has a corresponding registry entry — no rule references an event absent from the
+registry. **BLOCKING (Integration)**
+
+### Session Lifecycle
+
+**AC-OR03 — LOADING → ACTIVE gated on Floor Plan's dual init events**
+GIVEN state `LOADING`, WHEN both `floorplan:init` and the first `floorplan:update`
+have been received, THEN state transitions to `ACTIVE` within the same frame;
+WHEN only one of the two has arrived, THEN state remains `LOADING`. **BLOCKING
+(Integration)**
+
+**AC-OR04 — session:end fires exactly once, synchronously before SEALED**
+GIVEN state `ACTIVE`, WHEN `session:request_end {reason}` is received, THEN
+`session:end` is emitted exactly once, synchronously, and state is `SEALED`
+immediately after — no event can be delivered between the emission and the state
+flip. **BLOCKING (Logic)**
+
+**AC-OR05 — SEALED is terminal under further input**
+GIVEN state is `SEALED`, WHEN any further event is processed — a second
+`session:request_end`, a normal gameplay event (e.g. `scan:complete`), or an event
+with no registered override — THEN state reads `SEALED` both immediately after
+processing and after 3 further `requestAnimationFrame` ticks; no code path
+transitions state away from `SEALED`. **BLOCKING (Logic)**
+
+### Continuous Events & Ordering
+
+**AC-OR06 — player:position is relayed unmodified, no envelope added**
+GIVEN FPS Movement publishes `player:position {x,y,z}`, WHEN a subscriber's
+handler receives it, THEN the payload's values are byte-identical to what was
+published AND its key set is exactly `{x,y,z}` — no Orchestrator-added metadata
+(timestamp, sequence id, source tag) is present. **BLOCKING (Logic)**
+
+**AC-OR07 — session:tick fires once per frame, after player:position**
+GIVEN state `ACTIVE`, WHEN one `requestAnimationFrame` tick completes, THEN
+exactly one `session:tick {elapsedSeconds}` has been emitted, and it was
+delivered strictly after that frame's `player:position`. **BLOCKING (Logic)**
+
+**AC-OR08 — session:tick's frame position is structural, immune to publish order**
+GIVEN some other system attempts to publish an event before `player:position` in a
+frame's queue, WHEN that frame resolves, THEN delivery order is still exactly
+`player:position` (1st), `session:tick` (2nd), then all other queued events (3rd+)
+— the early-published unrelated event does not preempt position or tick.
+**BLOCKING (Logic)**
+
+**AC-OR09 — Global FIFO for unregistered pairs**
+GIVEN two events with no registered ordering override arrive in the same tick,
+WHEN Orchestrator delivers them, THEN they are delivered in their exact publish
+order. **BLOCKING (Logic)**
+
+**AC-OR10 — Registered override: floorplan:update before floorplan:loop**
+GIVEN both `floorplan:update` (reveal) and `floorplan:loop` are queued in the same
+tick for the same reveal, WHEN Orchestrator delivers them, THEN `floorplan:update`
+is delivered first regardless of publish order (Floor Plan AC-L09). **BLOCKING
+(Integration)**
+
+**AC-OR11 — Registered override: scan:coverage / scan:complete atomicity, adversarial interleave**
+GIVEN a tick queues, in publish order: `unrelatedA`, `scan:complete`,
+`unrelatedB`, `scan:coverage`, `unrelatedC` (where `scan:coverage`/`scan:complete`
+fire from the same `scan:captured` resolution), WHEN Orchestrator delivers the
+tick, THEN delivery order is exactly `unrelatedA, scan:coverage, scan:complete,
+unrelatedB, unrelatedC` — both overridden events are delivered back-to-back with
+no unrelated event interleaved between them (Scan Node AC-SN29). **BLOCKING
+(Integration)**
+
+**AC-OR12 — Registered override: scan:complete before scan:abort**
+GIVEN both `scan:complete` and `scan:abort` are queued in the same tick, WHEN
+Orchestrator delivers them, THEN `scan:complete` is delivered first (Point Cloud
+Renderer AC-E02, defensive). **BLOCKING (Integration)**
+
+**AC-OR13 — Override chain resolves via stable sort, not adjacent-pair swap**
+GIVEN three events with a registered order A→B→C arrive queued as C, A, B, WHEN
+Orchestrator delivers them, THEN the delivery order is A, B, C. **BLOCKING
+(Logic)**
+
+**AC-OR14 — Override chain does not disturb unrelated FIFO events in the same tick**
+GIVEN a tick queues, in publish order: `unrelatedA, C, unrelatedB, A, B` (where
+A→B→C is a registered 3-chain override per AC-OR13), WHEN the tick resolves, THEN
+delivery order is `unrelatedA, A, B, C, unrelatedB` — the chain resolves into
+correct relative order while both unrelated events retain their original relative
+position around it. **BLOCKING (Logic)**
+
+### Event Caching (Latest-Value vs. Discrete)
+
+**AC-OR15 — Latest-value event replayed to a late subscriber**
+GIVEN `scan:coverage` has already fired at least once, WHEN a new subscriber
+registers afterward, THEN it immediately receives the most recent `scan:coverage`
+payload without waiting for the next emission. **BLOCKING (Logic)**
+
+**AC-OR16 — session:tick is a cached latest-value event**
+GIVEN 5 `session:tick` events have fired (`elapsedSeconds` currently 5.0), WHEN a
+new subscriber registers, THEN it immediately receives `session:tick
+{elapsedSeconds: 5.0}` on subscribe, without waiting for the next frame.
+**BLOCKING (Logic)**
+
+**AC-OR17 — Current session state is cached for a subscriber joining mid-ACTIVE**
+GIVEN state is `ACTIVE` (not yet `SEALED`), WHEN a new subscriber registers for
+session-state, THEN it immediately receives `ACTIVE` on subscribe. **BLOCKING
+(Logic)**
+
+**AC-OR18 — Discrete event is NOT replayed to a late subscriber**
+GIVEN `scan:complete` fired for node N before a subscriber registered, WHEN that
+subscriber registers afterward, THEN it does **not** receive a replay of that
+`scan:complete`; it must read current state from a latest-value event instead
+(e.g. `scan:coverage`). **BLOCKING (Logic)**
+
+**AC-OR19 — session:end is the sole discrete exception**
+GIVEN state is `SEALED` (session:end already fired), WHEN a new subscriber
+registers, THEN it immediately receives one `session:end` delivery, even though
+`session:end` is classified discrete. **BLOCKING (Logic)**
+
+**AC-OR20 — floorplan:init is cached as a one-time roster**
+GIVEN `floorplan:init` has fired, WHEN a subscriber registers afterward, THEN it
+receives the cached roster payload immediately. **BLOCKING (Logic)**
+
+**AC-OR21 — A second floorplan:init is rejected, cached roster never changes**
+GIVEN `floorplan:init` has already fired once this session, WHEN a second
+`floorplan:init` is published, THEN Orchestrator does **not** update the cached
+roster, does **not** relay it to any subscriber, and (with
+`warnOnDroppedEvent=true`) `console.warn` names the rejected re-fire. Protects
+Scan Node's roster-invariant (Scan Node AC-SN14) at the bus level, not just by
+sibling-GDD convention. **BLOCKING (Logic)**
+
+### Edge Cases
+
+**AC-OR22 — Post-SEAL event is dropped with a named warning**
+GIVEN state `SEALED`, WHEN any event is published, THEN it is not delivered to
+any subscriber, and (with `warnOnDroppedEvent=true`) `console.warn` names both
+the event and its producer. **BLOCKING (Logic)**
+
+**AC-OR23 — Post-SEAL drop and late-SEALED-subscriber replay don't cross-contaminate, same frame**
+GIVEN state is `SEALED` and `session:end` already fired once, WHEN in the same
+frame (a) a new subscriber registers for `session:end` (triggering AC-OR19's
+replay) AND (b) an unrelated event (e.g. `scan:coverage`) is published post-seal
+(triggering AC-OR22's drop+warn), THEN the late subscriber receives exactly one
+`session:end` delivery, the dropped event triggers exactly one `console.warn`
+naming it, and neither path's count is affected by the other. **BLOCKING
+(Integration)**
+
+**AC-OR24 — LOADING-state gameplay event relays without advancing state**
+GIVEN state `LOADING`, WHEN a gameplay event (e.g. `scan:complete`) is published
+with an existing subscriber, THEN it is delivered normally, and state remains
+`LOADING` (only AC-OR03's dual-init condition advances it). **BLOCKING (Logic)**
+
+**AC-OR25 — Unknown event name is dropped with a named error**
+GIVEN an event name not present in the Interface Registry, WHEN it is published,
+THEN it is not delivered to any subscriber, and (with `warnOnDroppedEvent=true`)
+`console.error` names the unknown event and its publisher. **BLOCKING (Logic)**
+
+**AC-OR26 — Malformed payload is relayed as-is, silently (distinct from an unknown event)**
+GIVEN a *registered* event published with a payload missing a documented field,
+WHEN Orchestrator processes it, THEN the subscriber's handler receives the exact
+same malformed payload unchanged — no exception is thrown, no default-filling or
+field injection occurs, and (unlike AC-OR25) **no `console.error` fires**, since
+the event name itself is valid; only unregistered *names* are logged as errors.
+**BLOCKING (Logic)**
+
+**AC-OR27 — Redundant session:request_end is a single no-op**
+GIVEN `session:request_end` has already flipped state to `SEALED` once, WHEN a
+second `session:request_end {reason}` arrives (same or later frame), THEN state
+remains `SEALED`, no second `session:end` is emitted, that frame's other
+scheduled emissions (e.g. `session:tick`) proceed normally, and (with
+`warnOnDroppedEvent=true`) `console.warn` records the redundant reason.
+**BLOCKING (Logic)**
+
+**AC-OR28 — session:request_end during LOADING is honored directly**
+GIVEN state `LOADING`, WHEN `session:request_end {reason}` is received, THEN
+state transitions `LOADING → SEALED` directly (without passing through `ACTIVE`),
+and `session:end` fires. **BLOCKING (Logic)**
+
+**AC-OR29 — Late subscriber joining mid-override-resolution receives exactly one delivery**
+GIVEN `floorplan:update` and `floorplan:loop` are both queued in the same tick
+(AC-OR10's override), WHEN a new subscriber to `floorplan:update` registers after
+it is queued but before the tick's delivery pass completes, THEN it receives
+exactly one delivery of the current `floorplan:update` (live in-order delivery or
+cached replay — never both), and the override ordering for already-registered
+subscribers is unaffected by the new registration. **BLOCKING (Integration)**
+
+**AC-OR30 — cacheLatestValues=false disables all replay**
+GIVEN the `cacheLatestValues` toggle is `false`, WHEN a subscriber registers after
+any latest-value event has fired, THEN it receives nothing until the next live
+emission — no cached replay occurs, including for `floorplan:init`,
+`session:tick`, and `SEALED` state/`session:end`. **BLOCKING (Logic)**
 
 ## Open Questions
 
-[To be designed]
+1. **Provisional-flag cleanup across 4 sibling GDDs** — Point Cloud Renderer, FPS
+   Movement, Floor Plan, and Scan Node each tag their Orchestrator-facing interfaces
+   "⚠️ Provisional — Orchestrator undesigned." Once this GDD is Approved, those flags
+   are stale. A light editorial pass should remove them and replace with a citation
+   to this GDD. *Owner: whoever runs this GDD's post-approval pass. Resolve
+   immediately after Approval — cheap, mechanical, no design risk.*
+
+2. **Session-end trigger source is still provisional** — `session:request_end
+   {reason}` is designed as an intake any future system can call, but no system calls
+   it yet (Win/Lose & Ending, #10, is undesigned). This GDD's contract (Core Rule 2,
+   AC-OR04/27/28) is fully specified and testable *now*, independent of who calls it
+   — but the actual trigger conditions (coverage threshold reached, entity captured,
+   movement violation, corruption threshold) aren't decided until Win/Lose exists.
+   *Owner: whoever designs Win/Lose (#10). No blocker to Orchestrator's own
+   approval.*
+
+3. **`entity:proximity` tier vocabulary (4 vs. 5)** — already logged in
+   `systems-index.md` Open Cross-System Items. Orchestrator relays whatever shape
+   Entity System (#9) declares; it does not constrain or decide the tier set.
+   Restated here for visibility since Orchestrator's Interactions table references
+   `entity:proximity` by name. *Owner: Entity System (#9) author. Resolve when Entity
+   is designed.*
+
+4. **Core Rule 5 enforcement tooling** — "no direct imports between gameplay
+   systems" is a code-level constraint with no runtime AC (see Acceptance Criteria
+   preamble). Should this be enforced by a lint rule / dependency-graph check (e.g.
+   `dependency-cruiser` or a custom ESLint rule) at implementation time, or left to
+   code review discipline? *Owner: lead-programmer / devops-engineer. Resolve before
+   Production tooling setup, not blocking for this GDD's approval.*
+
+5. **`referenced_by` registry maintenance** — AC-OR02 tests that every Core Rule's
+   events are *registered*, but keeping each entry's `referenced_by` list current as
+   new GDDs consume an event is a process discipline (`/design-system` Phase 5), not
+   a runtime guarantee. No action needed now; noted so it isn't assumed automated.
+   *Owner: whoever runs `/design-system` for future consuming GDDs.*
