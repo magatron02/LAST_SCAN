@@ -2,7 +2,7 @@
 
 > **Status**: Draft
 > **Created**: 2026-06-26
-> **Last Updated**: 2026-06-27
+> **Last Updated**: 2026-06-28
 > **Source Concept**: design/gdd/LAST_SCAN_GDD.md
 >
 > **UX note** — Floor Plan System has a UI surface (the dollhouse map). In
@@ -32,8 +32,8 @@ UI, no jump scares, horror from the familiar made wrong, a found-footage cycle.
 |---|-------------|----------|----------|--------|------------|------------|
 | 1 | Point Cloud Renderer | Core | MVP | Designed | design/gdd/point-cloud-renderer.md | — |
 | 2 | FPS Movement | Core | MVP | Designed | design/gdd/fps-movement.md | — |
-| 3 | Floor Plan System | Gameplay | MVP | In Review (revised, re-review pending) | design/gdd/floor-plan-system.md | Point Cloud Renderer |
-| 4 | Scan Node System | Gameplay | MVP | Designed | design/gdd/scan-node-system.md | Floor Plan System |
+| 3 | Floor Plan System | Gameplay | MVP | Approved (round 4 independent re-review, 2026-06-30) | design/gdd/floor-plan-system.md | Point Cloud Renderer |
+| 4 | Scan Node System | Gameplay | MVP | Approved (round 4 independent re-review, 2026-07-01) | design/gdd/scan-node-system.md | Floor Plan System |
 | 5 | Persistence (localStorage) (inferred) | Persistence | Alpha | Not Started | — | — |
 | 6 | Audio System | Audio | Vertical Slice | Not Started | — | Entity System |
 | 7 | Session/Game State Orchestrator (inferred) | Core | MVP | Not Started | — | Point Cloud, FPS Movement, Scan Node |
@@ -81,7 +81,7 @@ UI, no jump scares, horror from the familiar made wrong, a found-footage cycle.
 ### Core Layer (depends on foundation)
 
 1. **Floor Plan System** — depends on: Point Cloud Renderer (renders geometry as points). Static guide that degrades (§8).
-2. **Scan Node System** — depends on: Floor Plan System (initial node positions). Owns live node state — the only ground truth.
+2. **Scan Node System** — depends on: Floor Plan System (`floorplan:init` roster + estimated positions; `floorplan:reveal` gate). Owns live node state — the only ground truth.
 3. **Session/Game State Orchestrator** — depends on: Point Cloud, FPS Movement, Scan Node. Central event bus / state machine all systems publish to and read from.
 4. **Scan Mechanic** — depends on: FPS Movement (locks camera), Scan Node (writes validity), Point Cloud (capture), Orchestrator.
 5. **Entity System** — depends on: Point Cloud (appears as point anomalies), Floor Plan (placement), Orchestrator.
@@ -154,8 +154,8 @@ UI, no jump scares, horror from the familiar made wrong, a found-footage cycle.
 |--------|-------|
 | Total systems identified | 13 |
 | Design docs started | 4 |
-| Design docs reviewed | 1 (Floor Plan — MAJOR REVISION, revised, re-review pending) |
-| Design docs approved | 0 |
+| Design docs reviewed | 2 (Floor Plan — Approved 2026-06-30; Scan Node — Approved 2026-07-01) |
+| Design docs approved | 2 (Floor Plan System, Scan Node System) |
 | MVP systems designed | 4 / 9 |
 | Vertical Slice systems designed | 0 / 2 |
 
@@ -180,22 +180,37 @@ UI, no jump scares, horror from the familiar made wrong, a found-footage cycle.
   player-experience framing with `creative-director` when designing the HUD, and do
   not "reconcile" the two denominators. (Scan Node Open Q#1.)
 
-- **Orchestrator (#5) — `scan:*` event family.** Scan Node (#4) emits the
+- **UI/HUD (#12) — inherited constraints from Scan Node's DEFERRED AC-SN31 + Trust
+  ordering requirement.** Scan Node's UI Requirements specify `coverage` must be the
+  visually **dominant** element over `nodesCompleted` (integer-completeness bias
+  otherwise makes "12/12" read as more authoritative than "92.3%," backwards from the
+  Inverted Reward's intent). AC-SN31 (DEFERRED (design)) tracks this as a priority but
+  has **no measurable proxy** — the HUD GDD must write its own AC with one (font-size
+  ratio, DOM order, contrast, or a playtest-verified trust read) rather than treat
+  AC-SN31 as already-testable. Do not satisfy this with a technically-larger-but-
+  psychologically-inert visual difference.
+
+- **Orchestrator (#5) — `scan:*` + `floorplan:*` contracts.** Scan Node (#4) emits
   authoritative `scan:complete` / `scan:abort` / `scan:coverage` /
   `scan:integrity_warning` / `scan:integrity_failure`, and consumes `scan:started` /
-  `scan:captured` from Scan Mechanic (#6). Orchestrator must register this family
-  alongside `floorplan:*`. (Scan Node Dependencies §.)
+  `scan:captured` from Scan Mechanic (#6). Floor Plan now separates the complete
+  internal roster (`floorplan:init`, once) from renderable geometry
+  (`floorplan:update`, on init/reveal/actual geometry mutation), and consumes
+  `player:position`, `session:tick`, plus scan-state events for desync and loop
+  crossing. Orchestrator must formalise this whole family. (Floor Plan/Scan Node
+  Dependencies §.)
 
 ---
 
 ## Immediate Next Steps (cross-machine)
 
-1. Run `/design-review` in a **fresh session** (independent critique) on the
-   undeviewed GDDs: `floor-plan-system.md` and `scan-node-system.md`.
-2. Then `/design-system` for **Orchestrator (#5)** — the event bus that formalises
+1. Floor Plan System **Approved** (2026-06-30, round 4) — done.
+2. Scan Node System **Approved** (2026-07-01, round 4, unanimous) — done.
+3. Then `/consistency-check` across all 4 GDDs.
+3. Then `/design-system` for **Orchestrator (#5)** — the event bus that formalises
    the `floorplan:*` / `scan:*` / `entity:proximity` contracts every designed GDD
    assumes. This is the convergence point for 4 systems' provisional event names.
-3. Then Scan Mechanic (#6) — the scan *verb* (360° lock, abort) that drives Scan
+4. Then Scan Mechanic (#6) — the scan *verb* (360° lock, abort) that drives Scan
    Node via `scan:started` / `scan:captured`.
 
 ---

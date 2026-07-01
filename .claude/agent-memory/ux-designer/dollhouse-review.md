@@ -1,11 +1,132 @@
 ---
 name: dollhouse-review
-description: Adversarial UX critique of Floor Plan System GDD dollhouse map — 12 issues found, 5 BLOCKING, delivered 2026-06-27 (full detail in project memory)
+description: Adversarial UX critique of Floor Plan System GDD dollhouse map — 12 issues found 2026-06-27 (5 BLOCKING); re-reviewed 2026-06-30 (2 resolved + 2 new findings); re-reviewed again same-day round 4 (access paradigm partially resolved, Interaction Matrix gap found)
 metadata:
   type: project
 ---
 
 Full adversarial review of design/gdd/floor-plan-system.md dollhouse map UX. Cross-referenced against scan-node-system.md and LAST_SCAN_GDD.md.
+
+## STATUS UPDATE (round 4, independent re-review, 2026-06-30 — same day as round 3)
+
+Re-reviewed against GDD "Last Updated: 2026-06-30" after round 3 locked the dollhouse
+access paradigm to **toggle key** at GDD level (UI Requirements line ~540-548) per my
+round-3 argument that it was mechanically load-bearing. Judged that resolution on its
+merits rather than taking "now present" as "now resolved":
+
+**Issue 2 (access paradigm) reclassified: fully-open → partially resolved.** The toggle-key
+bullet is a genuine improvement — correctly states the rationale (divided attention, not
+input friction) and correctly rejects persistent-overlay/tab-menu paradigms. But it relocates
+rather than fully closes the ambiguity. Three unaddressed gaps, none covered elsewhere in the
+doc:
+- Whether the panel is fullscreen-blocking or a partial overlay the player can still see the
+  room through — the bullet's own "divided attention" rationale depends on this and it's never
+  stated. A corner picture-in-picture dollhouse would satisfy the letter of "toggle key" while
+  defeating the stated intent.
+- Movement is explicitly NOT locked while the panel is open ("dollhouse-open does not lock
+  movement," line ~544) — that part IS specified, correcting my own assumption it'd be a gap.
+  But if the panel also blocks view (per above, unstated), the player would be navigating
+  blind, which is a materially different and riskier pattern than implied by the SCAN_LOCKED
+  analogy the bullet itself invokes, and the doc doesn't say why dollhouse-open diverges from
+  the SCAN_LOCKED precedent it cites.
+- **Entity-proximity-while-panel-open has zero rule anywhere** — not in UI Requirements, not
+  in Edge Cases, not in the new Interaction Matrix (Detailed Design, lines 221-241). This is
+  the single highest-stakes case the divided-attention tension exists to create, and the
+  Interaction Matrix — built this same round specifically to stop this exact class of
+  rule-interaction gap — doesn't have a row for it despite its own stated charter ("extend it
+  when a new load-bearing state is added," line 226-228).
+
+**Process finding, not just content finding:** the dollhouse-open state was introduced in the
+same revision pass as the Interaction Matrix but wasn't run through it. Worth flagging to
+creative-director/systems-designer as a process gap, not just a content gap, since the Matrix
+is supposed to be the structural fix for exactly this failure mode.
+
+**Issue 5 (room-vs-node freshness granularity)** — logic half got materially stronger (new
+AC-C08, line 642, directly covers the 3-of-4-stale-room case). Visual half (does a
+partially-stale room look different from a fully-stale room) still unconstrained. Net: more
+solid, still open.
+
+**No regressions found.** Issues 6/10 (KNOWN_STALE/CURRENT visual diff), 12/12+92% dissonance
+diegetic treatment, estimate-vs-real marker visuals: all unchanged from the 2026-06-30 (round
+3) status below.
+
+**New finding (round 4):** the SCAN_LOCKED analogy at UI Requirements line 544 invokes a
+precedent ("vulnerable state pattern") and then immediately diverges from it (movement stays
+unlocked) without stating why. Likely to be re-flagged by a future reviewer or the UI
+programmer as an unexplained asymmetry unless a rationale line is added.
+
+**Recommendation:** keep toggle-key as the access paradigm — correct decision, don't revert.
+Add one more constraint (UI Requirements bullet or Interaction Matrix row) pinning down panel
+occlusion + entity-proximity-while-open before treating Issue 2 as fully closed.
+
+---
+
+## STATUS UPDATE (round 3, independent re-review, 2026-06-30)
+
+Re-reviewed against the GDD as of "Last Updated: 2026-06-28" (UI Requirements ~line 456-501,
+AC-E10 line 708). Verdict: **2 of 12 original issues resolved, rest still open, plus 2 new
+findings.** Use this status table, not the original issue list below, as the current source
+of truth for what `/ux-design` on `design/ux/dollhouse.md` needs to inherit.
+
+**Resolved:**
+- Issue 4 (loop teleport marker behavior) — now AC-E09: marker stays lagged through a loop,
+  doesn't jump/snap. Concrete and testable.
+- Position-marker-in-unmapped-room (was an open question, not numbered) — now AC-E10: marker
+  hidden entirely, never fabricated. Clean, testable, no notes.
+
+**Narrowed but NOT resolved — flagged as a requirement but not actually specified:**
+- "Map is lying not bugged" priming (UI Requirements ~line 482-486) — GDD now requires a
+  diegetic frame exist (e.g. a `SPATIAL DATA: CACHED` label) but specifies no timing/
+  persistence/re-trigger rule. A single one-time boot-log line would technically satisfy the
+  letter of this requirement while almost certainly failing its purpose (player needs the
+  diegetic frame active *at the moment* desync becomes perceptible, often 10+ min later, not
+  just at t=0). `/ux-design` must pin down persistence, not just visual style.
+
+**Still fully open (original issues 2, 5, 6, 9 partial, 10, plus the cross-GDD items):**
+- Issue 2 (access paradigm: tab/overlay/toggle) — still entirely unspecified in UI
+  Requirements. This is mechanically load-bearing (changes how often desync is witnessed,
+  changes the felt pacing of Formula 2's desync_delay), not a cosmetic deferral — should be
+  constrained in the GDD itself, not left wholly to the UX spec.
+- Issue 6/10 (KNOWN_STALE vs KNOWN_CURRENT visual differentiation) — zero constraint, and
+  notably did NOT get the non-colour-channel requirement that the coverage ring did (Issue 9
+  only partially resolved — coverage ring got a non-colour requirement, the freshness mask did
+  not, despite the freshness mask being the more load-bearing diegetic signal).
+- Issue 5 (room-vs-node freshness granularity bridge) — Core Rule 6 now defines the logical
+  derivation (room is STALE while any child node is stale) but the *visual* consequence (does
+  a 3-of-4-stale room look different from a 4-of-4-stale room) is still unconstrained.
+- 12/12 + 92% dissonance diegetic treatment — still punted to an unauthored HUD GDD,
+  `creative-director` still not consulted (Lean mode note persists in the doc, line 62).
+- Estimate-vs-real marker visual treatment (Issue 1) — AC-C07 now defines the *logic*
+  (marker stays at estimate, doesn't snap) but visuals remain unconstrained, appropriately
+  deferred per se but worth re-checking when dollhouse.md is drafted.
+
+**New findings (not in the original 2026-06-27 review):**
+- No accessible fallback for players who cannot reliably perceive slow continuous
+  position-marker drift over a 25s (D_max) window. The marker is deliberately
+  linear-interpolated (AC-E09) specifically so there's no discrete jump to notice — by design
+  this is smooth, low-amplitude, continuous. For low-vision/attention-limited/vestibular-
+  sensitive players this is functionally invisible, and unlike the colour-blind coverage-ring
+  case, no fallback signal (discrete event, corroborating timestamp, etc.) is proposed anywhere.
+- `[?]` LOCKED-room placeholders are visible on the dollhouse from session start (UI
+  Requirements line 465), i.e. during the Player Fantasy's "gift"/competence-building opening
+  phase, with no spec for whether they read as "normal building feature" (closet, expected) or
+  "map gap" (premature wrongness signal). Risks undercutting the trust-building opening before
+  any horror mechanic has engaged.
+- Three overlapping status vocabularies a first-time player must parse: Scan Node's per-node
+  scan status (UNSCANNED/SCANNING/VALID/INVALID), Floor Plan's per-node freshness
+  (KNOWN_STALE/KNOWN_CURRENT), and Floor Plan's derived room-level freshness — shown across two
+  UI surfaces (sidebar list + dollhouse) with no stated visual relationship/hierarchy between
+  them.
+
+**Why:** Confirms the GDD's "resolved" claims should be checked individually, not taken at
+face value from the review log — narrowing scope ("requirement exists") is not the same as
+closing a gap ("requirement is specified enough to build"). Round 4 reinforces this further:
+even a change I personally argued for and got (GDD-level lock on access paradigm) needed the
+same skeptical re-check rather than being accepted on arrival — "present and reasoned" is not
+the same bar as "interaction-complete."
+**How to apply:** When `/ux-design` authors `design/ux/dollhouse.md`, use the round 4 status
+table above (supersedes round 3) as the live checklist. The original issue list below is kept
+for historical detail on issues still marked open.
 
 ## BLOCKING — Design Gaps Requiring Resolution Before UI Epics
 

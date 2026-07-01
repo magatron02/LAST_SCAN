@@ -6,6 +6,80 @@ any machine.
 
 ---
 
+## 2026-07-01 — Floor Plan + Scan Node APPROVED; Orchestrator GDD 7/8 (in progress)
+
+**Big picture:** both previously-designed core GDDs are now **Approved** via multi-round
+adversarial `/design-review` (4 specialists + creative-director synthesis per round).
+Consistency-check PASS across all 5 GDDs. Now mid-way through authoring Orchestrator (#5),
+the event-bus hub. Also fixed 3 codex-reported prototype bugs earlier this session.
+
+**Floor Plan System (#3) — APPROVED**
+- 4 review rounds total: round 1 MAJOR REVISION (Player-Fantasy/mechanics gap), rounds 2-3
+  NEEDS REVISION (cross-system contracts, interaction-matrix gaps), round 4 APPROVED-WITH-
+  CONDITIONS → conditions closed same session. AC count 23→46.
+- Key fixes across rounds: desync lags position marker (e²→e³ cubic), per-door loop cooldown,
+  `loop_arm_floor` escalation floor, `w_t≤0.8` cap (closes "D_max only via trap" loophole),
+  `D0<D_max` guard, dollhouse access = toggle key, **Interaction Matrix** subsection (structural
+  fix for recurring "blocker lives at rule interaction" pattern), AC-E16 (dollhouse-open ×
+  world-sim), AC-E17 (exactly one ANOMALY_FINAL — added during Scan Node review, cross-GDD fix).
+- Full history: `design/gdd/reviews/floor-plan-system-review-log.md`.
+
+**Scan Node System (#4) — APPROVED (unanimous, round 4)**
+- 4 rounds: round 1 MAJOR REVISION → rounds 2-3 NEEDS REVISION → round 4 unanimous APPROVED.
+  AC count 22→26.
+- CD named the arc pattern: **"blockers live at the inheritance boundary"** — every round-1
+  blocker was Scan Node failing to inherit/cross-ref a sibling-doc precedent (Floor Plan, or
+  master GDD), not internal logic. And **"assert the what, don't prove the how"** — a fix would
+  state a guarantee while the proof lagged a round (co-location → trust-valence; canonical
+  source; AC-SN29 cited as proof it didn't test). Both closed by round 4.
+- Structural fixes that should generalize to future hub docs: **Cross-System Invariants table**
+  (Floor Plan's Interaction Matrix pointed outward at sibling docs); **DEFERRED-tracking table**
+  with design-vs-implementation split + Owner/Resolve-when. `scan:coverage` named canonical over
+  `scan:complete.coverage`; `coverage` = visually-dominant trust-bearing number (AC-SN31 DEFERRED);
+  D-1 Auto-Typed Log hierarchy restored in Open Q#5.
+- 1 tracked non-blocking fast-follow: Edge Case 11 (same-frame scan:captured race) AC.
+- Full history: `design/gdd/reviews/scan-node-system-review-log.md`.
+
+**Cross-GDD amendment:** Floor Plan amended twice during Scan Node review (AC-E17 exactly-one-
+ANOMALY_FINAL guard; chained-reveal Edge Case wording corrected to bar duplication not placement).
+Additive only, no Floor Plan re-review needed.
+
+**Consistency check:** `/consistency-check` PASS — 0 conflicts, 5 GDDs, 3 formulas + 11 constants
+all agree across source + referencing docs.
+
+**Prototype bug fixes (earlier this session):** BUG-0001 (dt cap → AC-EC03), BUG-0002 (WASD stuck
+after focus loss → blur/visibilitychange clear), BUG-0003 (HUD initial 0,0,0 → clamp+HUD out of
+movement branch) — all fixed in `src/main.js`, `node --check` PASS, Vite loads clean. Status
+"Fix Applied — Pending Manual Verification" (PointerLock needs real-browser user gesture; sandbox
+preview can't verify). Reports updated under `production/qa/bugs/`.
+
+**Orchestrator (#5) — IN PROGRESS, 7 of 8 required sections written**
+- File: `design/gdd/orchestrator.md`. Done: Overview, Player Fantasy (pure infra, no fantasy),
+  Detailed Design (7 Core Rules + session lifecycle LOADING/ACTIVE/SEALED + per-frame ordering +
+  full Interactions table), Formulas (N/A — relay only), Edge Cases (9, incl. post-SEAL drop,
+  late-subscriber cache, ordering override, unknown-event), Dependencies, Tuning Knobs (no
+  gameplay knobs, 2 dev toggles).
+- **Key design decisions:** Orchestrator = registration-not-invention (event names/shapes taken
+  verbatim from the 4 sibling GDDs); sole owner of session lifecycle; `session:request_end{reason}`
+  intake decouples "who decides game over" from "who enforces it" (Win/Lose undesigned);
+  Global FIFO ordering + registered per-pair overrides (Floor Plan AC-L09, Scan Node AC-SN29,
+  etc.); **latest-value cache vs discrete fire-and-forget** classification (Core Rule 7) for
+  late subscribers; `session:tick`/`session:end` are the 2 events nothing produced before — now
+  Orchestrator-owned.
+- **STILL TO DO (4 sections):** Visual/Audio (likely N/A — no pixels), UI Requirements (likely
+  N/A — no UI surface), **Acceptance Criteria** (the real remaining work — needs qa-lead per lean
+  high-risk rule, testable GIVEN/WHEN/THEN for the 7 core rules + ordering + cache + lifecycle),
+  Open Questions (incl. provisional-flag-cleanup follow-up on the 4 sibling GDDs).
+
+**Next step**
+- Resume `/design-system Orchestrator` — finish Visual/Audio + UI Requirements (both likely brief
+  N/A), then Acceptance Criteria (spawn qa-lead, lean mode Section H high-risk), then Open Questions.
+- Then Phase 5: register `session:*`/event-family in `entities.yaml`, self-check, `/design-review`
+  in a fresh session.
+- After Orchestrator: Scan Mechanic (#6), Entity (#7/#9).
+
+---
+
 ## 2026-06-27 — Floor Plan GDD design-review (full) → MAJOR REVISION → revised
 
 **What got done**

@@ -48,6 +48,10 @@ controls.addEventListener("unlock", () => {
 const keys = new Set();
 addEventListener("keydown", (e) => keys.add(e.code));
 addEventListener("keyup", (e) => keys.delete(e.code));
+addEventListener("blur", () => keys.clear());
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) keys.clear();
+});
 
 const dir = new THREE.Vector3();
 const half = { x: ROOM.w / 2 - 0.4, z: ROOM.d / 2 - 0.4 }; // keep inside walls
@@ -55,7 +59,7 @@ const half = { x: ROOM.w / 2 - 0.4, z: ROOM.d / 2 - 0.4 }; // keep inside walls
 const clock = new THREE.Clock();
 function animate() {
   requestAnimationFrame(animate);
-  const dt = clock.getDelta();
+  const dt = Math.min(clock.getDelta(), 0.1); // AC-EC03 cap
 
   if (controls.isLocked) {
     dir.set(
@@ -68,13 +72,13 @@ function animate() {
       // PointerLockControls moveForward/Right respect yaw
       controls.moveRight(dir.x * MOVE_SPEED * dt);
       controls.moveForward(-dir.z * MOVE_SPEED * dt);
-      // clamp inside room (ponytail: AABB clamp, swap for wall raycast when rooms get real)
-      const p = controls.object.position;
-      p.x = THREE.MathUtils.clamp(p.x, -half.x, half.x);
-      p.z = THREE.MathUtils.clamp(p.z, -half.z, half.z);
-      p.y = EYE_HEIGHT;
-      hudCoords.textContent = `${p.x.toFixed(1)}, ${p.y.toFixed(1)}, ${p.z.toFixed(1)}`;
     }
+    // clamp inside room (ponytail: AABB clamp, swap for wall raycast when rooms get real)
+    const p = controls.object.position;
+    p.x = THREE.MathUtils.clamp(p.x, -half.x, half.x);
+    p.z = THREE.MathUtils.clamp(p.z, -half.z, half.z);
+    p.y = EYE_HEIGHT;
+    hudCoords.textContent = `${p.x.toFixed(1)}, ${p.y.toFixed(1)}, ${p.z.toFixed(1)}`;
   }
 
   renderer.render(scene, camera);
