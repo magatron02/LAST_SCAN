@@ -6,6 +6,53 @@ any machine.
 
 ---
 
+## 2026-07-02 — Orchestrator round-4 `/design-review`: APPROVED + ADR-0001 (bus wiring) written
+
+**What got done (this session, Desktop):** ran the round-4 independent `/design-review` on
+Orchestrator (#5) — same 5 agents (systems-designer, qa-lead, lead-programmer, engine-programmer +
+creative-director synthesis). Round-4 entry condition re-confirmed (`npm run verify:registry` → 14/0/5).
+Verdict **APPROVED**. Then wrote **ADR-0001** resolving the OQ7/OQ9 implementation-architecture
+deferrals. **Orchestrator is now Approved (MVP designed 5/9, approved 3/3 reviewed).**
+
+**Round-4 review outcome (APPROVED, 0 blockers)**
+- No new Core-Rule contradiction; all sibling-AC citations (AC-L09, AC-C06, AC-SN29, AC-E02) verified.
+- 2 one-sentence **addenda applied same session**: (1) AC-OR01 evidence note gained a scope caveat —
+  `verify-registry` checks **top-level** field names only (collapses `roomMeta:[{id,type}]` →
+  `roomMeta`), so 14/0/5 proves top-level parity + self-contradiction absence, NOT nested parity
+  (sufficient today; qa-lead find); (2) Rule 4 `groupAnchorIndex` pinned as a **single-pass** min
+  (one Map populated during the queue snapshot) — the doc's O(1)/"no graph work in frame budget"
+  claim was O(group-size) under a naive read (lead-programmer find).
+- **OQ9 scope expanded** (engine-programmer): the ADR must also bound per-tick queue size + pin
+  delivery-vs-`renderer.render()` ordering. **New OQ10**: pure-atomic override chains n≥3 (no directed
+  edge) are undefined — CANNOT fire today (live bridge `scan:complete` is mixed) → design-gate on
+  whichever future GDD (Entity/Win-Lose) first registers a 3-way atomic requirement.
+- Specialist disagreement surfaced (OQ9 severity: lead-programmer non-blocking vs engine-programmer
+  more-serious) → CD: lead-programmer for approval, engine-programmer for the ADR.
+
+**ADR-0001 — Orchestrator Bus Wiring & Override-Table Storage (Proposed)**
+Four decisions (all user-confirmed via widget):
+- (a) **Manual composition root** — `src/main.js` constructs the one Orchestrator, injects `bus` via
+  constructor (class modules) / `init(bus)` (flat modules). Rejected singleton + service-locator.
+- (b) **Dedicated data module** `src/core/event-overrides.js` — hand-authored JS literal compiled once
+  at construction ("compiled once" = module-load). Rejected entities.yaml codegen (no Vite codegen step).
+- (c) **ESLint `import/no-restricted-paths`** zone rule (CI) enforces Core Rule 5 — no sibling
+  `src/systems/**` imports. Rejected review-checklist-only (not a forcing function).
+- (d) **Delivery pass BEFORE `renderer.render()`** every rAF frame (no one-frame lag for tick-driven
+  visuals) + dev **perf-tripwire** warn at queue > 64/tick. Closes OQ8's render-ordering question.
+- Registry: 5 stances written to `docs/registry/architecture.yaml` (event_bus interface; 2 forbidden
+  patterns: direct_cross_system_import + module_singleton_bus; 3 api_decisions; orchestrator ≤0.3ms/frame
+  + 60fps/16.6ms budget).
+
+**Files touched:** orchestrator.md, systems-index.md, orchestrator-review-log.md (new round-4 entry),
+docs/architecture/adr-0001-orchestrator-bus-wiring.md (NEW), docs/registry/architecture.yaml.
+
+**Immediate next step:** ADR-0001 is `Proposed` — run **`/architecture-review` in a FRESH session**
+(never same-session as authoring) to validate coverage and move it toward `Accepted`. OR proceed to
+`/design-system` **Scan Mechanic (#6)**, next in design order. Stories referencing ADR-0001 stay
+auto-blocked until it is `Accepted`.
+
+---
+
 ## 2026-07-02 — Orchestrator round-3 `/design-review`: NEEDS REVISION → 6 blockers fixed + verify-registry tooling built
 
 **What got done (this session, Desktop):** ran a full independent round-3 `/design-review` on

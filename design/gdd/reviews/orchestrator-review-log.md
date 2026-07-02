@@ -2,6 +2,59 @@
 
 Tracks design-review history for `design/gdd/orchestrator.md`.
 
+## Review — 2026-07-02 (round 4, independent re-review) — Verdict: APPROVED
+Scope signal: M (GDD complete; remaining work is the OQ9 ADR + implementation-note polish)
+Specialists: systems-designer, qa-lead, lead-programmer, engine-programmer, creative-director (synthesis)
+Blocking items: 0 (2 one-sentence doc addenda applied same session) | Recommended: 5
+Round-4 entry condition (OQ6 `verify-registry`) MET — `npm run verify:registry` independently re-run: **14 pass / 0 fail / 5 skip**.
+Summary: The machine-verified round did its job — no new Core-Rule contradiction, all sibling-AC
+citations (AC-L09, AC-C06, AC-SN29, AC-E02) verified accurate, registry parity machine-confirmed.
+Surviving findings: (1) [qa-lead] `verify-registry` diffs only **top-level** field names (collapses
+`roomMeta:[{id,type}]` → `roomMeta`), so "14 pass" proves top-level parity + self-contradiction
+absence — the exact `floorplan:loop` failure class that beat three human rounds — **not** nested-field
+parity; sufficient today (no active event has a divergent nested shape). (2) [lead-programmer] Rule 4
+`groupAnchorIndex` is O(group-size) unless computed in one pass, contradicting the doc's O(1) /
+"no graph work in the frame budget" claim. (3) [engine-programmer] per-tick stable sort is O(n log n)
+with `n` structurally unbounded + delivery-vs-`renderer.render()` ordering already live today via
+`player:position` → PointerLockControls — elevated into OQ9 ADR scope. (4) [systems-designer] pure-
+atomic chain n≥3 rank undefined — **cannot fire today** (the live `scan:complete` bridge is *mixed*,
+seeded by a directed edge, covered by AC-OR33) — logged as OQ10, a design-gate on Entity/Win-Lose.
+CD ruling: both round-3 rulings STAND — OQ6 entry condition met (top-level parity sufficient now,
+Addendum 1 is a scope caveat not a failed gate); OQ9 non-blocking (Addendum 2 the sole doc-correctness
+escapee). Findings 1–2 fixed same session as one-sentence addenda; 3 folded into OQ9; 4 logged as OQ10.
+Prior verdict resolved: Yes (round-3's 6 blockers confirmed closed; no new blocker — APPROVED).
+
+### Addenda applied same session (2026-07-02, round 4)
+- **Addendum 1** — AC-OR01 evidence note gained a scope caveat: `verify-registry` verifies top-level
+  field-name parity + producer self-contradiction, NOT nested-field parity; extend the tool before any
+  active event carries a divergent nested payload shape.
+- **Addendum 2** — Rule 4 `groupAnchorIndex` pinned as a single-pass min (one `Map` group-id→min-
+  arrival-index populated during the queue snapshot); the naive per-event queue scan (O(n·groupSize))
+  named explicitly as NOT the intended implementation, so the O(1) claim holds literally.
+- **OQ9 scope expanded** (engine-programmer): the bus-wiring / override-storage ADR must also (c) bound
+  per-tick queue size (or adopt the deferred perf-tripwire AC) and (d) pin Orchestrator's delivery pass
+  vs. `renderer.render()` ordering. Perf/timing, deferred to the ADR, not blocking approval.
+- **New OQ10** — pure-atomic override chains of 3+ events (no directed edge) are undefined; design-gate
+  on whichever future GDD first registers a 3-way atomic requirement (Entity #9 / Win-Lose #10).
+
+### Recommended (not blocking — fold into test-authoring / OQ9 ADR)
+- **AC-OR29** — mark as a distinct white-box/Integration tier; its own note admits it is not black-box
+  constructible (requires calling `subscribe()` from inside another handler).
+- **AC-OR11 / AC-OR33** — need an explicit "assert adjacency via inclusion, not order-equality" test-
+  pattern note so an independent implementer doesn't write a false-failing strict-order assertion.
+- **AC-OR23** is compound (replay-count + drop/warn + non-interference) — a failure won't localize.
+- **AC-OR26** — the negative `console.error` assertion needs a stated observation window (cf. AC-OR05's
+  "3 further rAF ticks").
+- Per-frame GC (queue-snapshot array, no pool note), `elapsedSeconds` float-accumulation drift, and
+  mid-pass `session:request_end` publish-vs-delivery timing (AC-OR27/OR31 assume same-tick) are
+  asserted-not-stated; an illustrative (non-binding) composition-root wiring sketch would also help.
+
+### Specialist disagreement surfaced
+OQ9 severity — lead-programmer (stays non-blocking; only its algorithmic offshoot, Addendum 2, touches
+doc correctness) vs. engine-programmer (burst-cost + sort-vs-render is more serious). CD adjudication:
+lead-programmer *for approval* (the sort is proven correct, never proven cheap-under-burst — an
+architecture concern, not a design defect), engine-programmer *for the ADR* (elevated into OQ9 scope).
+
 ## Review — 2026-07-02 (round 3, independent re-review) — Verdict: NEEDS REVISION
 Scope signal: M (revision itself S — targeted edits across 5 files, applied same session)
 Specialists: systems-designer, qa-lead, lead-programmer, engine-programmer, creative-director (synthesis)

@@ -1,6 +1,7 @@
 # Session/Game State Orchestrator
 
-> **Status**: Designed — round-three independent `/design-review` 2026-07-02 returned
+> **Status**: Approved (round-four independent `/design-review` 2026-07-02, 5
+> specialists). Prior round-three `/design-review` 2026-07-02 returned
 > NEEDS REVISION; 6 blockers revised in-session (registry fidelity: `floorplan:loop`
 > `toRoom` drift resolved in producer's favour + Core Rule 1 self-contradiction
 > precedence clause; `scan:integrity_*` placeholder payloads replaced with declared
@@ -9,9 +10,11 @@
 > **next-tick deferral** for mid-delivery publishes + `subscribe()` reentrancy
 > contract + AC-OR29 re-targeted to a latest-value event; `session:tick
 > elapsedSeconds` defined as capped-dt game-time accumulation + new AC-OR34; new OQ9
-> for DI wiring/override-table storage ADR). OQ6 (`verify-registry` tooling) is now a
-> **round-4 entry condition** per creative-director ruling. **Pending round-four
-> re-review before Approved.**
+> for DI wiring/override-table storage ADR). OQ6 (`verify-registry` tooling) round-4
+> **entry condition MET** (`npm run verify:registry` → 14 pass / 0 fail / 5 skip).
+> **Round 4 APPROVED**; two one-sentence addenda applied same session (AC-OR01
+> evidence-note scope caveat; Rule 4 `groupAnchorIndex` single-pass). New OQ10
+> (pure-atomic n≥3 chains); OQ9 scope expanded (burst-cost + render-ordering).
 > **Author**: magatron02 + agents
 > **Last Updated**: 2026-07-02
 > **Implements Pillar**: Foundation/Infrastructure — enables every other pillar mechanically
@@ -194,7 +197,13 @@ layer, no player-facing framing to shape.*
      members actually queued this tick** (group *membership* is the static compile-time
      set; the minimum is taken only over members present in the current tick's queue —
      an event whose group-mates didn't fire this tick anchors at its own arrival index,
-     behaving as a singleton for that tick). Arrival indices are unique, so
+     behaving as a singleton for that tick). **This minimum is computed in the same
+     single pass that snapshots the tick's queue — one `Map` from override-group id to
+     its minimum arrival index, populated while iterating the queue once — so per-event
+     key assignment stays O(1) and the "no graph work in the frame budget" claim below
+     holds literally. A naive per-event scan of the queue for group-mates would be
+     O(n·groupSize) and is explicitly NOT the intended implementation.** Arrival indices
+     are unique, so
      two distinct groups can never tie on this — a group is delivered as a contiguous
      block slotted at its earliest-arriving member's position, and every unrelated
      event keeps its arrival position relative to that block.
@@ -536,6 +545,15 @@ code calls into — not a player-facing UI at all.
 > is now a round-4 entry condition**, not a recommendation: the next review verifies
 > machine-checked output, not a fourth human sweep. Gate evidence = that pass/fail
 > report, filed like a Config/Data smoke check, not a `tests/unit/` suite.
+> **Scope caveat (round-4 review).** `verify-registry` compares **top-level payload
+> field names** and flags producer self-contradiction — it does **not** diff *nested*
+> field names (`roomMeta:[{id,type}]` collapses to `roomMeta` before comparison). This
+> is sufficient today because no active (non-provisional) event carries a nested
+> payload shape at divergent-rename risk; the "14 pass / 0 fail" result therefore
+> proves top-level parity + self-contradiction absence, which is the exact failure
+> class (the `floorplan:loop` 4-vs-3 split) that beat three human rounds — **not** full
+> field-tree parity. A future event with nested payload fields must have the tool
+> extended to diff nested names before its AC-OR01 pass counts as verbatim-complete.
 
 **AC-OR01 — Registry shapes match producing GDDs verbatim**
 GIVEN the Interface Registry entry for any event, WHEN compared against the
@@ -883,3 +901,29 @@ never leaks into the payload, and a downstream `t/T_session` consumer (Floor Pla
    reference flows). **Blocking prerequisite to the first system implementing against
    the bus — not to this GDD's approval.** *Owner: lead-programmer /
    technical-director.*
+   **Round-4 addition (engine-programmer).** The same ADR must also (c) **bound the
+   per-tick delivered-queue size** (or adopt the round-1-deferred perf-tripwire AC) —
+   Rule 4's delivery is one stable sort, O(n log n) with `n` structurally unbounded,
+   and this GDD's own scan-complete cascade / multi-node `floorplan:reveal` bursts can
+   spike `n`; and (d) **pin where Orchestrator's full delivery pass sits relative to
+   Three.js `renderer.render()`** inside the rAF callback. (d) overlaps OQ8 but is
+   already live *today*: `player:position` → FPS Movement's PointerLockControls camera
+   mutation runs every frame *before* `session:tick`, so the delivery-pass-vs-render
+   ordering exists now, not only when a future GDD consumes `session:tick`. Both are
+   perf/timing, not correctness — deferred to the ADR, not blocking this GDD's approval.
+
+10. **Pure-atomic override chains of 3+ events (n≥3, no directed edge) are undefined.**
+    Rule 4's rank assignment says an atomic-only member "inherits the exact rank of its
+    atomic partner" (**singular**), and its compile-time rejections presuppose a directed
+    edge somewhere in the group to seed integer ranks. A pure-atomic triangle
+    (`{A,B}` + `{B,C}` atomic, **no** directed edge anywhere) leaves `B` with two atomic
+    partners and no rank source — the doc states neither a resolution (one shared-rank
+    connected component) nor a compile-time rejection. **Cannot fire today**: no active
+    registered event forms a 3-way pure-atomic group — the one live bridge
+    (`scan:complete`) is a *mixed* group, seeded by the `(scan:complete, scan:abort)`
+    directed edge, and is covered by AC-OR33. This becomes **blocking the instant Entity
+    (#9) or Win/Lose (#10) registers a 3-way atomic requirement**: resolve it then by
+    defining pure-atomic n≥3 as either a single shared-rank component (transitive
+    adjacency) or an explicit compile-time rejection, and add a fixture. *Owner:
+    whichever GDD first registers atomic edges among 3+ events. This is a design-gate on
+    that GDD, not on this one.*

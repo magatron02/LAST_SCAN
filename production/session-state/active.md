@@ -1,9 +1,25 @@
 # Active Session State
 
-**Task:** Orchestrator (#5) round-3 `/design-review` — **DONE (this session, 2026-07-02)**.
-Full review (4 specialists + CD) → NEEDS REVISION, 6 blockers all fixed in-session; built the
-round-4 entry-gate tooling. **Status: In Review — round-4 entry condition MET, round-4 re-review
-pending.** MVP still 5/9 designed, 0 approved (Orchestrator not yet Approved).
+**Task:** Orchestrator (#5) round-4 `/design-review` + ADR-0001 — **DONE (this session, 2026-07-02)**.
+Round-4 full review (4 specialists + CD) → **APPROVED** (0 blockers, 2 one-sentence addenda applied);
+then wrote **ADR-0001** (bus wiring) resolving OQ7/OQ9. **Status: Orchestrator APPROVED. MVP 5/9
+designed, 3/3 reviewed approved. ADR-0001 = Proposed (needs `/architecture-review` in a fresh session
+to move toward Accepted).**
+
+## Orchestrator round-4 review + ADR-0001 — completed (2026-07-02, Desktop)
+- **Round 4 APPROVED, 0 blockers.** Entry condition re-confirmed (`npm run verify:registry` 14/0/5).
+  2 addenda applied: (1) AC-OR01 evidence note — verify-registry checks TOP-LEVEL fields only
+  (nested rename passes silently; sufficient today); (2) Rule 4 `groupAnchorIndex` pinned single-pass
+  (O(1) claim was O(group-size) naively). OQ9 scope expanded (queue bound + render ordering).
+  **New OQ10**: pure-atomic chains n≥3 undefined — cannot fire today, design-gate on Entity/Win-Lose.
+- **ADR-0001 written** (`docs/architecture/adr-0001-orchestrator-bus-wiring.md`, Proposed):
+  (a) manual composition root (main.js injects bus); (b) `src/core/event-overrides.js` data module
+  compiled once at construction; (c) ESLint `import/no-restricted-paths` enforces Core Rule 5;
+  (d) delivery pass BEFORE `renderer.render()` + dev perf-tripwire (queue > 64). 5 stances written to
+  `docs/registry/architecture.yaml`.
+- **NEXT:** `/architecture-review` in a **FRESH session** (never same-session as ADR authoring) to
+  validate + move ADR-0001 to Accepted. OR `/design-system` Scan Mechanic (#6, MVP). Stories that
+  reference ADR-0001 stay auto-blocked until it is Accepted.
 
 ## Orchestrator round-3 review — completed (2026-07-02, Desktop)
 - **6 blockers fixed** (see worklog top entry for full detail): floorplan:loop toRoom drift +
