@@ -2,7 +2,7 @@
 
 > **Status**: Draft
 > **Created**: 2026-06-26
-> **Last Updated**: 2026-06-28
+> **Last Updated**: 2026-07-02
 > **Source Concept**: design/gdd/LAST_SCAN_GDD.md
 >
 > **UX note** — Floor Plan System has a UI surface (the dollhouse map). In
@@ -36,7 +36,7 @@ UI, no jump scares, horror from the familiar made wrong, a found-footage cycle.
 | 4 | Scan Node System | Gameplay | MVP | Approved (round 4 independent re-review, 2026-07-01) | design/gdd/scan-node-system.md | Floor Plan System |
 | 5 | Persistence (localStorage) (inferred) | Persistence | Alpha | Not Started | — | — |
 | 6 | Audio System | Audio | Vertical Slice | Not Started | — | Entity System |
-| 7 | Session/Game State Orchestrator (inferred) | Core | MVP | Designed | design/gdd/orchestrator.md | Point Cloud, FPS Movement, Scan Node |
+| 7 | Session/Game State Orchestrator (inferred) | Core | MVP | In Review (round-3 NEEDS REVISION 2026-07-02, revised same session; round-4 entry condition MET — `npm run verify:registry` passes 14/0/5) | design/gdd/orchestrator.md | Point Cloud, FPS Movement, Scan Node |
 | 8 | Scan Mechanic | Gameplay | MVP | Not Started | — | FPS Movement, Scan Node, Point Cloud, Orchestrator |
 | 9 | Entity System | Gameplay | MVP | Not Started | — | Point Cloud, Floor Plan, Orchestrator |
 | 10 | Win/Lose & Ending | Gameplay | MVP | Not Started | — | Scan Node, Entity System, Orchestrator |

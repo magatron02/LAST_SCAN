@@ -213,7 +213,7 @@ never enter the dollhouse view; `UNKNOWN` is internal-only and never rendered.
 |---|---|---|
 | **Point Cloud Renderer** | out | `floorplan:update {rooms:[{id, aabb, surfaces}]}` at load and on actual geometry mutation (including reveal, excluding loop). Renderer rebuilds BASE. Renderer never calls back. |
 | **Scan Node System** | out + in | **Out:** `floorplan:init` provides the complete internal node roster + room mapping + estimates once. **In:** listens for `scan:complete {nodeId}` to fire anomaly reveals. Scan Node owns actual node state and ignores geometry-only `floorplan:update` for roster creation. |
-| **FPS Movement** | out | Consumes the emitted room AABB set as the **navigable union-bounds** for its clamp; on loop, applies `floorplan:loop {targetPosition, targetYaw}` (FPS Movement owns the player transform — floor plan only requests). |
+| **FPS Movement** | out | Consumes the emitted room AABB set as the **navigable union-bounds** for its clamp; on loop, applies `floorplan:loop {targetPosition, targetYaw, toRoom}` (FPS Movement owns the player transform and applies only position/yaw; `toRoom` flags the destination for subtle-difference injection consumers — Core Rule 7). |
 | **Orchestrator** | in + out | **Subscribes:** `player:position {x,y,z}` (history + threshold crossing), `session:tick {elapsedSeconds}` (authoritative `t`), `scan:coverage {coverage}`, `scan:started`, `scan:complete`, `scan:abort` (scan lock + reveals), `entity:proximity {tier}`, `session:end`. **Emits:** `floorplan:init`, `floorplan:update`, `floorplan:reveal {roomId}`, `floorplan:loop {targetPosition, targetYaw, toRoom}`. Event names are provisional until Orchestrator (#5) is authored. |
 | **UI / HUD** | out | Provides the dollhouse **view model** (room outlines, labels, estimated nodes, per-room mask state) for the dollhouse panel. UI renders it; floor plan supplies data only. |
 | **Entity System** | out | Provides room AABBs + door graph for entity placement/pathing (anomaly room = highest-proximity zone, §8). Consumed via Orchestrator, not a direct call. |
@@ -439,7 +439,7 @@ its layout data outright (curated pool). It does not call any system directly.
 |---|---|---|
 | Point Cloud Renderer | Room geometry to render | `floorplan:update {rooms:[{id, aabb, surfaces}]}` at load + on mutation. *(Renderer GDD already records this as its upstream data source — bidirectionally consistent ✅.)* |
 | Scan Node System | Initial node anchors | `floorplan:init` once with all node ids/types, room membership, and `estimatedPosition` values. Scan Node owns actual node state; hidden-room geometry remains private. |
-| FPS Movement | Navigable bounds + loop reposition | Consumes the room AABB set as clamp **union-bounds** *(FPS Movement GDD records this ✅)*. **Loop reposition** via `floorplan:loop {targetPosition, targetYaw}` *(added to FPS Movement GDD inbound interface)*. |
+| FPS Movement | Navigable bounds + loop reposition | Consumes the room AABB set as clamp **union-bounds** *(FPS Movement GDD records this ✅)*. **Loop reposition** via `floorplan:loop {targetPosition, targetYaw, toRoom}` *(added to FPS Movement GDD inbound interface; FPS Movement applies position/yaw only)*. |
 | Entity System | Room AABBs + door graph | For placement/pathing; anomaly room = highest-proximity zone (§8). Via Orchestrator. ⚠️ *Provisional — Entity undesigned.* |
 
 **Hard vs. soft:** the only hard dependency is the **Orchestrator event bus**
@@ -448,7 +448,7 @@ data-provider relationship mediated by events — no direct imports, consistent 
 the renderer GDD's pattern.
 
 **Bidirectional actions:**
-1. **FPS Movement GDD** — `floorplan:loop {targetPosition, targetYaw}` added to its
+1. **FPS Movement GDD** — `floorplan:loop {targetPosition, targetYaw, toRoom}` added to its
    inbound interface (done with this GDD).
 2. **Orchestrator GDD (when authored)** — must register the `floorplan:*` event
    family plus the inbound `player:position`, `session:tick`, and `scan:*` contracts.
@@ -625,7 +625,7 @@ geometry. **BLOCKING**
 
 **AC-C02 — Floor Plan emits, never mutates the player transform**
 GIVEN a loop fires, WHEN Floor Plan's loop handler runs, THEN it emits
-`floorplan:loop {targetPosition, targetYaw}` and the passed-in player transform
+`floorplan:loop {targetPosition, targetYaw, toRoom}` and the passed-in player transform
 (`position` x/y/z and `rotation`/yaw) is **unchanged after the handler returns** —
 equal field-by-field to the values before the call; the position changes only on FPS
 Movement's subsequent tick. *(Unit-testable: snapshot `{x,y,z,yaw}` before/after the

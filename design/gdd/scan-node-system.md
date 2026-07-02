@@ -150,9 +150,9 @@ room flips it `true`. Triggering it before that = rejected (rule 3).
 | System | Direction | Interface |
 |---|---|---|
 | **Floor Plan** | in | `floorplan:init` once (complete node roster + room mapping + estimates, including hidden metadata); `floorplan:reveal {roomId}` (flip anomaly node scannable). Geometry-only `floorplan:update` does not change the roster. |
-| **Floor Plan** | out | `scan:complete {nodeId}` consumed by Floor Plan to fire anomaly reveals *(floor-plan GDD records this ✅ bidirectional)*. |
+| **Floor Plan** | out | `scan:complete` consumed by Floor Plan (reads `nodeId`) to fire anomaly reveals *(floor-plan GDD records this ✅ bidirectional)*. |
 | **Scan Mechanic** | in | `scan:started {nodeId}` → SCANNING; `scan:captured {nodeId, valid, entityInFrame}` → VALID/INVALID. ⚠️ *Provisional — Scan Mechanic undesigned.* |
-| **Orchestrator** | out | Emits authoritative `scan:complete {nodeId, valid, entityCaptured, coverage}`, `scan:abort {nodeId, coverage}`, `scan:coverage {coverage}` (on change), `scan:integrity_warning {count}`, `scan:integrity_failure`. |
+| **Orchestrator** | out | Emits authoritative `scan:complete {nodeId, valid, entityCaptured, coverage}`, `scan:abort {nodeId, coverage}`, `scan:coverage {coverage}` (on change), `scan:integrity_warning {count}`, `scan:integrity_failure {}` (payload-less by design — declared explicitly so the registry can verbatim-compare, Orchestrator AC-OR01). |
 | **Win/Lose** | out | Reads `coverage`, `anomalyNodeScanned`, `entityEverCaptured`, integrity state for ending evaluation (§9). ⚠️ *Provisional — Win/Lose undesigned.* |
 | **UI / HUD** | out | Node list + per-node status + coverage for the sidebar node list, coverage ring, `NODES COMPLETED X/Y` (§10). ⚠️ *Provisional.* |
 | **Point Cloud Renderer** | out | `scan:complete` drives SCAN_MATERIALIZING *(renderer GDD records this ✅)*. |
@@ -311,7 +311,7 @@ supplies only estimates and the roster. No direct imports; everything via Orches
 
 | System | What they need | Interface |
 |---|---|---|
-| **Floor Plan System** | Anomaly reveal trigger | `scan:complete {nodeId}` — Floor Plan matches nodeId against each room's `revealTriggerNodeId`. *(Bidirectionally consistent — floor-plan GDD already lists this ✅.)* |
+| **Floor Plan System** | Anomaly reveal trigger | `scan:complete` — Floor Plan matches its `nodeId` field against each room's `revealTriggerNodeId`. *(Bidirectionally consistent — floor-plan GDD already lists this ✅.)* |
 | **Point Cloud Renderer** | Scan completion signal | `scan:complete` drives SCAN_MATERIALIZING. *(Renderer GDD records this ✅.)* |
 | **FPS Movement** | Scan exit signal | `scan:complete` / `scan:abort` exits SCAN_LOCKED. *(FPS GDD records this ✅.)* |
 | **Win/Lose & Ending** | Ending inputs | `coverage`, `anomalyNodeScanned`, `entityEverCaptured`, `scan:integrity_failure` (§9). ⚠️ *Provisional — Win/Lose undesigned.* |

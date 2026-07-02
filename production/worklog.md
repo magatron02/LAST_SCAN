@@ -6,6 +6,53 @@ any machine.
 
 ---
 
+## 2026-07-02 — Orchestrator round-3 `/design-review`: NEEDS REVISION → 6 blockers fixed + verify-registry tooling built
+
+**What got done (this session, Desktop):** ran a full independent round-3 `/design-review` on
+Orchestrator (#5) — 4 adversarial specialists (systems-designer, qa-lead, lead-programmer,
+engine-programmer) + creative-director synthesis. Verdict **NEEDS REVISION (6 blockers)**; all
+6 revised in-session, then built the round-4 entry-gate tooling the CD mandated. Orchestrator is
+now **In Review — round-4 entry condition MET**, pending a round-4 re-review (now a machine-verify,
+not a 4th human sweep).
+
+**The 6 blockers (all fixed)**
+1. `floorplan:loop` payload drift — Floor Plan's own GDD split 4-vs-3 on `toRoom`. Kept `toRoom`
+   (CD ruling: producer's Core Rule prose is normative); patched Floor Plan ×4 incl. BLOCKING
+   AC-C02, FPS Movement inbound; added Core Rule 1 self-contradicting-producer precedence clause.
+2. `scan:integrity_*` registered as un-comparable `"{...}"` placeholders → declared `{count}` / `{}`;
+   Scan Node now declares the empty payload explicitly.
+3. AC-OR01 evidence note's "zero deltas" claim was false → corrected + OQ6 elevated.
+4. Rule 4 mixed atomic+directed override group (`scan:complete` bridges the atomic pair AND the
+   directed pair — LIVE, not hypothetical) had undefined `intraGroupRank` → defined (atomic-only
+   members inherit partner rank; 2 new compile-time rejections); new **AC-OR33** co-queues all 3.
+5. "Arrival index" never defined + AC-OR29 contradicted Core Rule 7 → defined arrival index =
+   publish-call-time with **next-tick deferral** for mid-delivery publishes (user decision), added
+   `subscribe()` reentrancy contract, re-targeted AC-OR29 to a latest-value event.
+6. `session:tick elapsedSeconds` undefined → pinned as **capped-dt game time** (`dt_cap` 0.1s, same
+   as FPS Movement; prevents tab-restore snapping Floor Plan's escalation to 1.0); new **AC-OR34**;
+   `dt_cap` registered as a cross-system constant. New **OQ9** (DI wiring + override-storage ADR).
+   AC count 32 → 34.
+
+**verify-registry tooling (OQ6 RESOLVED — round-4 entry gate)**
+- New `tools/verify-registry.mjs` (`npm run verify:registry`). Parses free-text `payload:` with a
+  balanced-brace reader (no `payload_fields:` schema needed), diffs each event's field set vs. its
+  producing GDD, and flags **producer self-contradiction** (the floorplan:loop failure mode).
+  `--selftest` = 9 parser assertions.
+- On first run caught **2 further drifts all 3 manual rounds missed**: `scan:complete` restated as a
+  `{nodeId}` subset in 2 Scan Node rows; `renderer:anomaly_density` written 3 ways in Point Cloud.
+  Both normalized. Final: **14 pass, 0 fail, 5 skip (provisional)**.
+- Follow-up: fold into CI when `/test-setup` lands a workflow (no CI yet).
+
+**Files touched:** orchestrator.md, floor-plan-system.md, fps-movement.md, scan-node-system.md,
+point-cloud-renderer.md, entities.yaml, systems-index.md, orchestrator-review-log.md (new round-3
+entry), package.json, tools/verify-registry.mjs (new).
+
+**Immediate next step:** round-4 re-review of Orchestrator (`/clear` first — 5 agents need clean
+context), OR proceed to `/design-system` Scan Mechanic (#6 in design order, MVP). Round 4 should be
+short: run `npm run verify:registry` (passes) + confirm the 6 blocker fixes read cleanly.
+
+---
+
 ## 2026-07-01 — Orchestrator GDD COMPLETE (MVP 5/9); 19-event family registered
 
 **What got done (this session, Legion):** finished the Orchestrator (#5) GDD — the last

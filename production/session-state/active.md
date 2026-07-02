@@ -1,9 +1,23 @@
 # Active Session State
 
-**Task:** Orchestrator (#5) GDD — **COMPLETE**. All 8 required sections + Visual/Audio
-+ UI + Open Questions written. 30 acceptance criteria (qa-lead validated). Phase 5 done:
-registered 19-event family in entities.yaml (new `events:` section), systems-index → 5/9.
-**Status: Designed — pending independent `/design-review` in a fresh session.**
+**Task:** Orchestrator (#5) round-3 `/design-review` — **DONE (this session, 2026-07-02)**.
+Full review (4 specialists + CD) → NEEDS REVISION, 6 blockers all fixed in-session; built the
+round-4 entry-gate tooling. **Status: In Review — round-4 entry condition MET, round-4 re-review
+pending.** MVP still 5/9 designed, 0 approved (Orchestrator not yet Approved).
+
+## Orchestrator round-3 review — completed (2026-07-02, Desktop)
+- **6 blockers fixed** (see worklog top entry for full detail): floorplan:loop toRoom drift +
+  Core Rule 1 precedence clause; scan:integrity_* payloads declared; false "zero deltas" note
+  corrected; Rule 4 mixed-group intraGroupRank defined + AC-OR33; arrival-index defined
+  (publish-time, next-tick deferral) + subscribe() reentrancy + AC-OR29 re-targeted;
+  elapsedSeconds = capped-dt (dt_cap 0.1s) + AC-OR34 + OQ9. AC 32 → 34.
+- **verify-registry tooling built** — `tools/verify-registry.mjs` (`npm run verify:registry`),
+  OQ6 RESOLVED. Passes **14/0/5**. Caught + fixed 2 more drifts (scan:complete subset,
+  renderer:anomaly_density 3-way) that 3 manual rounds missed. `--selftest` = 9 assertions.
+- **KEY decisions locked:** toRoom kept (CD ruling); mid-delivery publish → next-tick deferral;
+  atomic-only override members inherit partner rank.
+- **NEXT:** either round-4 re-review (`/clear` first, run `npm run verify:registry` as evidence)
+  OR `/design-system` Scan Mechanic (#6, MVP). Round 4 should be short.
 
 ## Orchestrator Phase 5 completed (2026-07-01)
 - entities.yaml: NEW `events:` section, 19 events w/ producer/consumers/payload/kind

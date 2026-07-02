@@ -284,7 +284,7 @@ The rapid reverse reads as "data lost", distinct from the forward-fill ramp.
 - **If `scan:capture_frame` is received for a node already in BASE**: Scan Mechanic is
   responsible for preventing re-scan of completed nodes. If a duplicate frame event arrives,
   renderer adds a new materialization overlay on top of existing BASE data. The resulting
-  double density will fire `renderer:anomaly_density {type:"spike"}` — reads as a ghost
+  double density will fire `renderer:anomaly_density {type:"spike", sigma}` — reads as a ghost
   artefact. Acceptable behaviour, not a crash case.
 
 - **If `PROXIMITY_CORRUPTED` and `SCAN_MATERIALIZING` are active simultaneously**: jitter
@@ -430,7 +430,7 @@ GIVEN ENTITY_A state with occluder mesh at position P, WHEN the scene renders fr
 GIVEN total point count at D = 900 would exceed 1,500,000 for the current room, WHEN the BASE layer builds at session load, THEN D is auto-scaled uniformly downward until total ≤ 1,500,000; rebuild completes in a single frame with no incremental pop. **BLOCKING**
 
 **AC-D02 — Anomaly sigma event threshold**
-GIVEN A_tile = 1.0 m², k_noise = 0.10, ρ_base = 900 pts/m², WHEN ρ_obs = 1,350 (σ = 5.0), THEN renderer emits exactly one `renderer:anomaly_density {type:"spike", sigma ≈ 5.0}` (±0.01 tolerance); WHEN ρ_obs = 970 (σ ≈ 0.78), no event is emitted. **BLOCKING**
+GIVEN A_tile = 1.0 m², k_noise = 0.10, ρ_base = 900 pts/m², WHEN ρ_obs = 1,350 (σ = 5.0), THEN renderer emits exactly one `renderer:anomaly_density {type:"spike", sigma}` with `sigma ≈ 5.0` (±0.01 tolerance); WHEN ρ_obs = 970 (σ ≈ 0.78), no event is emitted. **BLOCKING**
 
 **AC-D03 — Jitter magnitude is quadratic, not linear; no jitter on materializing layer**
 GIVEN PROXIMITY_DISTURBED (NEAR: d_min=3.0m, d_max=8.0m, J_max=0.020m), WHEN entity is at d = 5.0m (t=0.40), THEN BASE point displacement per frame ≈ 0.0072m (±10%); at d = 3.5m (t=0.10) ≈ 0.0162m (±10%); materializing overlay points receive 0.00m displacement in both cases. **BLOCKING**

@@ -37,7 +37,7 @@
 #   Each entry: name, status, source, referenced_by[], attributes{}, added, revised
 
 version: 1
-last_updated: "2026-07-01"  # Orchestrator #5: registered the 19-event cross-system family (new events: section)
+last_updated: "2026-07-02"  # Orchestrator #5 round-3 revision: scan:integrity_* "{...}" placeholders replaced with declared field sets; session:tick elapsedSeconds pinned as capped-dt game time; dt_cap constant registered (AC-OR01/AC-OR34)
 
 # ─── ENTITIES ────────────────────────────────────────────────────────────────
 # Named game-world objects: enemies, NPCs, characters, factions, bosses.
@@ -117,9 +117,10 @@ events:
     source: design/gdd/orchestrator.md
     registered_by: design/gdd/orchestrator.md
     consumers: [design/gdd/floor-plan-system.md]  # session_escalation elapsed-time input; + future timed systems
-    payload: "{elapsedSeconds}"
+    payload: "{elapsedSeconds}"  # capped-dt GAME TIME, not wall-clock: per-frame delta clamped to dt_cap (0.1s) — tab-restore cannot jump it (Orchestrator Rule 3, AC-OR34)
     kind: latest-value
     added: 2026-07-01
+    revised: "2026-07-02"
   - name: session:end
     status: active
     source: design/gdd/orchestrator.md
@@ -167,7 +168,7 @@ events:
     source: design/gdd/scan-node-system.md
     registered_by: design/gdd/orchestrator.md
     consumers: [design/gdd/floor-plan-system.md, design/gdd/point-cloud-renderer.md, design/gdd/fps-movement.md]
-    payload: "{nodeId, coverage, ...}  # carries what Floor Plan needs to derive a reveal (AC-SN21)"
+    payload: "{nodeId, valid, entityCaptured, coverage}"  # verbatim from Scan Node AC-SN05/SN21 (was "{nodeId, coverage, ...}" — under-specified)
     kind: discrete
     added: 2026-07-01
   - name: scan:abort
@@ -175,7 +176,7 @@ events:
     source: design/gdd/scan-node-system.md
     registered_by: design/gdd/orchestrator.md
     consumers: [design/gdd/point-cloud-renderer.md, design/gdd/fps-movement.md]
-    payload: "{nodeId}"
+    payload: "{nodeId, coverage}"  # verbatim from Scan Node AC-SN06 (was "{nodeId}" — dropped coverage)
     kind: discrete  # scan:complete takes priority if both queued same tick (Point Cloud AC-E02)
     added: 2026-07-01
   - name: scan:started
@@ -207,24 +208,26 @@ events:
     source: design/gdd/scan-node-system.md
     registered_by: design/gdd/orchestrator.md
     consumers: [design/gdd/floor-plan-system.md]  # + UI/HUD #12
-    payload: "{...}"
+    payload: "{count}"  # verbatim from Scan Node Core Rule 8 / Interactions table (was "{...}" placeholder — not a comparable field set, round-3 blocker)
     kind: discrete
     added: 2026-07-01
+    revised: "2026-07-02"
   - name: scan:integrity_failure
     status: active
     source: design/gdd/scan-node-system.md
     registered_by: design/gdd/orchestrator.md
     consumers: []  # Win/Lose #10, UI/HUD #12 (both undesigned)
-    payload: "{...}"
+    payload: "{}"  # payload-less transition marker — now declared explicitly in Scan Node Interactions table (was "{...}" placeholder, round-3 blocker)
     kind: discrete
     added: 2026-07-01
+    revised: "2026-07-02"
   # -- floorplan family --
   - name: floorplan:init
     status: active
     source: design/gdd/floor-plan-system.md
     registered_by: design/gdd/orchestrator.md
     consumers: [design/gdd/scan-node-system.md]  # builds node roster + coverage denominator S from this
-    payload: "{roster, roomMapping}  # complete node roster incl. hidden ANOMALY_FINAL/NULL metadata"
+    payload: "{propertyId, roomMeta:[{id,type}], nodeRoster:[{nodeId,nodeType,roomId,estimatedPosition}]}"  # verbatim from Floor Plan Core Rules §; complete roster incl. hidden ANOMALY_FINAL/NULL (was "{roster, roomMapping}" — renamed fields, dropped propertyId)
     kind: latest-value  # one-time; 2nd fire REJECTED, cached roster never changes (Orchestrator AC-OR21)
     added: 2026-07-01
   - name: floorplan:update
@@ -408,6 +411,17 @@ constants:
     value: 0.35
     unit: metres
     added: 2026-06-26
+    revised: ""
+
+  - name: dt_cap
+    status: active
+    source: design/gdd/fps-movement.md  # Formula 1's "hard cap at 0.1s" — named here because a second system now shares it
+    referenced_by:
+      - design/gdd/fps-movement.md
+      - design/gdd/orchestrator.md  # session:tick elapsedSeconds accumulates the same capped delta (Rule 3, AC-OR34)
+    value: 0.1
+    unit: seconds
+    added: 2026-07-02
     revised: ""
 
   - name: MOUSE_SENSITIVITY
