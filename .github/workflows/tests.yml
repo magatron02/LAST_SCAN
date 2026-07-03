@@ -1,0 +1,21 @@
+name: tests
+
+on:
+  push:
+    branches: [ls_main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run verify:registry   # Orchestrator OQ6 — fold into CI
+      - run: npm test
+# ponytail: ESLint import/no-restricted-paths (ADR-0001c, Core Rule 5) is added
+# when src/systems/** exists — no gameplay systems to lint yet.
