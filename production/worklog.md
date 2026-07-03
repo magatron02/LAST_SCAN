@@ -6,6 +6,58 @@ any machine.
 
 ---
 
+## 2026-07-02 (architecture phase) — 6 ADRs written, review FAIL→CONCERNS, pre-prod gate FAIL
+
+**What got done (this session, Desktop):** ran the full 12-task architecture backlog the
+first `/architecture-review` (FAIL) surfaced. Owner drove it in "approve per ADR/artifact"
+cadence (collaboration protocol relaxed for this run). **All 12 tasks complete.**
+
+**Delivered:**
+1. **Engine pinned** — `docs/engine-reference/three/VERSION.md` (r171); CLAUDE.md Engine
+   Version Reference repointed from Godot → Three.js (fixes the governance gap).
+2. **6 new ADRs** (all `Proposed` unless noted):
+   - ADR-0002 Point Cloud Renderer — layer stack, BASE_SEALED accretion, Type A depth-only
+     occluder **prototype-gated on OQ1 (r171, HIGH)** → stays Proposed until prototype passes.
+   - ADR-0003 Per-Frame Budget — 16.6ms split, ~8ms CPU soft budget + GPU point-draw ceiling,
+     dev frame monitor + queue tripwire.
+   - ADR-0004 Movement + Input — FpsMovement(bus,camera,config), injected-dt update(),
+     **native PointerLock API (not PointerLockControls)** so GDD formulas/ACs stay testable.
+   - ADR-0005 Session Data Pipeline — one JSON per property (`data/properties/<id>.json`),
+     single source w/ both estimated+authoritative node positions; Matterport tooling deferred.
+     **Resolves Scan Node Q#4 / Floor Plan Q#3; unblocks Production.**
+   - ADR-0006 Floor Plan — two-contract init, pure dollhouse mask, 2 desync structures
+     (ring buffer + scan-state queue), per-door loop FSM + crossing detector; view-model
+     transport deferred to UI/HUD ADR (preserves Core Rule 5).
+   - ADR-0007 Scan Node — Map registry, coverage=V/S pure derivation (no cached counter),
+     synchronous state-before-emit (AC-SN29), nodesCompleted vs coverage divergence.
+3. **ADR-0001 → Accepted** (owner chose: only the round-4-reviewed one; 0002–0007 stay
+   Proposed pending independent review).
+4. **Re-run `/architecture-review`: FAIL → CONCERNS.** Coverage 4/5/33 → **42/42**, 0
+   cross-ADR conflicts, engine consistent. Reports: `architecture-review-2026-07-02-rerun.md`,
+   updated `traceability-index.md`.
+5. **`/test-setup`** — tests/unit + tests/integration, smoke test green (vitest 1 passed),
+   `.github/workflows/tests.yml` (npm ci → verify:registry → npm test). ESLint zone rule
+   deferred until src/systems/** exists (ADR-0001c).
+6. **`/ux-design`** — `design/ux/accessibility-requirements.md` (flags **A-V3 photosensitivity**:
+   point-cloud flicker/jitter needs flash ceiling ≤3/s + reduced-distortion toggle) +
+   `design/ux/interaction-patterns.md` (meta-pattern: the Vulnerable State).
+7. **`/gate-check pre-production`: FAIL** — `production/gate-check-pre-production-2026-07-02.md`.
+   Infra/architecture criteria (4–8) all green; blocked on **design-phase** work.
+
+**Pre-production gate blockers (next phase):**
+1. Design the **4 remaining MVP GDDs** — Scan Mechanic (#8), Entity (#9, high-risk),
+   Win/Lose (#10, inverted-reward ending), UI/HUD (#12, owns deferred view-model transport).
+2. Design-review + approve Point Cloud + FPS Movement (still "In Design").
+3. ADRs for the 4 new systems + UI/HUD view-model transport; flip all system ADRs → Accepted
+   (incl. ADR-0002 after OQ1 prototype).
+4. Re-run `/architecture-review` → PASS.
+
+**NEXT:** `/design-system` **Scan Mechanic (#8)** first — Point Cloud/FPS/Scan Node all
+already reference its events (`scan:started`/`scan:captured`/`scan:capture_frame`/
+`movement:scan_triggered`) as provisional upstream. Then Entity, Win/Lose, UI/HUD.
+
+---
+
 ## 2026-07-02 (later session) — First `/architecture-review` (full): FAIL, ADR backlog established
 
 **What got done (this session, Desktop):** ran the first full `/architecture-review`. It's the

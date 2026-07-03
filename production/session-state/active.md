@@ -1,9 +1,28 @@
 # Active Session State
 
-**Task:** First full `/architecture-review` — **DONE (2026-07-02, later session)**. Verdict **FAIL**
-(expected first-run state: Foundation/Core requirements uncovered, ADR-0001 not yet Accepted). TR
-registry populated (42 IDs, v2). **Status: architecture phase just opened — 6 ADRs to write; ADR-0001
-still Proposed.**
+**Task:** Architecture phase (12-task backlog) — **DONE (2026-07-02)**. 6 ADRs written
+(ADR-0002..0007), ADR-0001 → Accepted, engine pinned r171, tests+CI green, UX foundations,
+re-review **FAIL→CONCERNS** (42/42 covered, 0 conflicts), pre-prod gate **FAIL** (4 MVP GDDs
+undesigned). **Status: architecture phase complete for designed systems; next = design 4 MVP GDDs.**
+
+## Architecture phase complete — 12/12 tasks (2026-07-02, Desktop)
+- **ADR-0002 Point Cloud** (Proposed, OQ1 prototype-gated) · **0003 Per-Frame Budget** ·
+  **0004 Movement+Input** (native PointerLock, not the addon) · **0005 Session Data** (one
+  JSON/property, resolves Q#4/Q#3, unblocks Production) · **0006 Floor Plan** · **0007 Scan Node**.
+  All Proposed except **ADR-0001 Accepted** (owner: only the round-4-reviewed one; rest await
+  independent review).
+- **Engine pinned**: `docs/engine-reference/three/VERSION.md` r171; CLAUDE.md repointed.
+- **Re-review FAIL→CONCERNS**: `architecture-review-2026-07-02-rerun.md`, `traceability-index.md`
+  (42/42 covered, 0 cross-ADR conflicts).
+- **test-setup**: tests/unit+integration, vitest green, `.github/workflows/tests.yml`
+  (verify:registry + npm test). ESLint zone rule deferred to first src/systems/**.
+- **ux-design**: `design/ux/accessibility-requirements.md` (⚠️ A-V3 photosensitivity flag) +
+  `interaction-patterns.md`.
+- **gate-check pre-production: FAIL** — `production/gate-check-pre-production-2026-07-02.md`.
+  Infra/architecture green; blocked on design-phase work.
+- **NEXT:** `/design-system` **Scan Mechanic (#8)** first (Point Cloud/FPS/Scan Node reference
+  its events provisionally), then Entity (#9), Win/Lose (#10), UI/HUD (#12); approve Point
+  Cloud + FPS Movement GDDs; ADRs for the 4 + flip all → Accepted; re-run architecture-review.
 
 ## `/architecture-review` (full) — completed (2026-07-02, Desktop)
 - **42 TRs baselined** in `tr-registry.yaml` (v2; slugs pc/mov/fp/sn/or). Coverage **4 ✅ / 5 ⚠️ / 33 ❌**.
