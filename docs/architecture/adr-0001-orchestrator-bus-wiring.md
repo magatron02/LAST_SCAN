@@ -1,7 +1,13 @@
 # ADR-0001: Orchestrator Bus Wiring & Override-Table Storage
 
 ## Status
-Proposed
+Accepted
+
+> Accepted 2026-07-02 — ratified after the round-4 Orchestrator design-review
+> (5 specialists) and owner sign-off. Implementation-validation items (ESLint
+> zone rule failing a sibling import in CI, the perf tripwire, and the
+> delivery-before-render harness) remain to be exercised once `/test-setup`
+> lands the CI workflow — they validate the implementation, not the decision.
 
 ## Date
 2026-07-02
