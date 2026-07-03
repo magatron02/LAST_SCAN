@@ -6,6 +6,47 @@ any machine.
 
 ---
 
+## 2026-07-02 (later session) — First `/architecture-review` (full): FAIL, ADR backlog established
+
+**What got done (this session, Desktop):** ran the first full `/architecture-review`. It's the
+gate between Technical Setup and Pre-Production. Loaded all 5 designed GDDs (Point Cloud, FPS
+Movement, Floor Plan, Scan Node, Orchestrator) + the lone ADR-0001. TR registry was empty → this
+run **establishes the requirements baseline: 42 TR-IDs** now in `tr-registry.yaml` (v2).
+
+**Verdict: FAIL** — not a knock on the GDDs (they're rigorous), but the skill's definition:
+Foundation + Core layer requirements are uncovered and the one ADR isn't Accepted.
+- Coverage: 42 TRs → **4 ✅ / 5 ⚠️ / 33 ❌**. Only ADR-0001 exists, covering the Orchestrator's
+  4 wiring decisions (TR-or-006/007/008/009) + partial touches on 5 more.
+- **3 blocking issues:** (1) ADR-0001 is `Proposed`, not `Accepted` → all bus-dependent stories
+  auto-blocked; (2) Foundation layer (Point Cloud Renderer incl. the HIGH-risk r171 depth-occluder
+  OQ1, + FPS Movement) has zero ADR coverage; (3) **no Three.js engine reference exists** —
+  `CLAUDE.md` + `engine-reference/` still describe Godot 4.6; r171 is pinned nowhere.
+- **No cross-ADR conflicts** (only 1 ADR). **No GDD revision flags.**
+- **Engine-specialist consultation skipped** (justified): ADR-0001 has "no engine API surface"
+  (its own Knowledge Risk = LOW) — nothing for a specialist to challenge. Re-enable once a
+  rendering ADR with real Three.js surface exists.
+
+**Required ADRs (prioritised, in the report):** 1. Point Cloud Renderer arch (HIGH, resolve OQ1);
+2. Per-frame budget allocation (MEDIUM); 3. Kinematic movement + PointerLock (LOW); 4. Session data
++ authoritative node-position pipeline (LOW, blocks Production — Scan Node Q#4 / Floor Plan Q#3);
+5. Floor Plan + Scan Node system ADRs. Plus: pin the engine (add `engine-reference/three/VERSION.md`
+r171, fix CLAUDE.md pointer) and flip ADR-0001 → Accepted.
+
+**Files written (user approved all three):**
+- `docs/architecture/architecture-review-2026-07-02.md` — full report.
+- `docs/architecture/traceability-index.md` — coverage index + full 42-row matrix.
+- `docs/architecture/tr-registry.yaml` — populated v2, 42 stable TR-IDs (pc/mov/fp/sn/or slugs).
+
+**Pre-gate checklist — all ❌:** no `tests/unit`+`tests/integration`, no `.github/workflows/tests.yml`
+(→ `/test-setup`); no `design/ux/accessibility-requirements.md`, no `design/ux/interaction-patterns.md`
+(→ `/ux-design`). `/gate-check pre-production` not yet available.
+
+**NEXT:** write the missing ADRs in fresh sessions (`/architecture-decision`), starting with Point
+Cloud Renderer (Foundation, HIGH). Re-run `/architecture-review` after each to watch coverage climb.
+Independently: flip ADR-0001 → Accepted; run `/test-setup` + `/ux-design` to clear the pre-gate ❌s.
+
+---
+
 ## 2026-07-02 — Orchestrator round-4 `/design-review`: APPROVED + ADR-0001 (bus wiring) written
 
 **What got done (this session, Desktop):** ran the round-4 independent `/design-review` on

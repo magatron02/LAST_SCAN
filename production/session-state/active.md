@@ -1,10 +1,29 @@
 # Active Session State
 
-**Task:** Orchestrator (#5) round-4 `/design-review` + ADR-0001 — **DONE (this session, 2026-07-02)**.
-Round-4 full review (4 specialists + CD) → **APPROVED** (0 blockers, 2 one-sentence addenda applied);
-then wrote **ADR-0001** (bus wiring) resolving OQ7/OQ9. **Status: Orchestrator APPROVED. MVP 5/9
-designed, 3/3 reviewed approved. ADR-0001 = Proposed (needs `/architecture-review` in a fresh session
-to move toward Accepted).**
+**Task:** First full `/architecture-review` — **DONE (2026-07-02, later session)**. Verdict **FAIL**
+(expected first-run state: Foundation/Core requirements uncovered, ADR-0001 not yet Accepted). TR
+registry populated (42 IDs, v2). **Status: architecture phase just opened — 6 ADRs to write; ADR-0001
+still Proposed.**
+
+## `/architecture-review` (full) — completed (2026-07-02, Desktop)
+- **42 TRs baselined** in `tr-registry.yaml` (v2; slugs pc/mov/fp/sn/or). Coverage **4 ✅ / 5 ⚠️ / 33 ❌**.
+  Only ADR-0001 exists (covers TR-or-006/007/008/009 + partials).
+- **3 blockers:** (1) ADR-0001 `Proposed` not `Accepted` → bus stories auto-blocked; (2) Foundation
+  layer (Point Cloud incl. HIGH r171 depth-occluder OQ1, + FPS Movement) has **no ADR**; (3) **no
+  Three.js engine reference** — CLAUDE.md + engine-reference/ still say Godot 4.6, r171 unpinned.
+- No cross-ADR conflicts (1 ADR). No GDD revision flags. Engine-specialist consult skipped (ADR-0001
+  has no engine API surface).
+- **Files written:** `docs/architecture/architecture-review-2026-07-02.md`, `.../traceability-index.md`,
+  `.../tr-registry.yaml` (v2).
+- **Required ADRs (priority):** 1. Point Cloud Renderer arch (HIGH, resolve OQ1); 2. per-frame budget
+  (MED); 3. kinematic movement + PointerLock (LOW); 4. session data + node-position pipeline (LOW,
+  blocks Production); 5. Floor Plan + Scan Node ADRs.
+- **Pre-gate all ❌:** no tests/, no CI workflow (→ `/test-setup`); no accessibility-requirements.md,
+  no interaction-patterns.md (→ `/ux-design`). `/gate-check pre-production` unavailable.
+- **NEXT:** `/architecture-decision` for Point Cloud Renderer (fresh session), then re-run
+  `/architecture-review`. Independently: flip ADR-0001 → Accepted; run `/test-setup` + `/ux-design`.
+
+## Orchestrator round-4 review + ADR-0001 — completed (2026-07-02, Desktop)
 
 ## Orchestrator round-4 review + ADR-0001 — completed (2026-07-02, Desktop)
 - **Round 4 APPROVED, 0 blockers.** Entry condition re-confirmed (`npm run verify:registry` 14/0/5).

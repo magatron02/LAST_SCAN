@@ -24,33 +24,311 @@
 #
 # STATUS VALUES: active | deprecated | superseded-by: TR-[system]-NNN
 
-version: 1
-last_updated: ""
+version: 2
+last_updated: "2026-07-02"
 
-requirements: []
+requirements:
 
-# --- EXAMPLE ENTRIES (remove when first real entries are added) ---
-#
-# - id: TR-combat-001
-#   system: combat
-#   gdd: design/gdd/combat-system.md
-#   requirement: "Player takes damage from enemies based on attack power minus defence"
-#   created: 2026-03-10
-#   revised: ""
-#   status: active
-#
-# - id: TR-combat-002
-#   system: combat
-#   gdd: design/gdd/combat-system.md
-#   requirement: "Combo window timing is 0.4 seconds between hits"
-#   created: 2026-03-10
-#   revised: "2026-04-01"
-#   status: active
-#
-# - id: TR-combat-003
-#   system: combat
-#   gdd: design/gdd/combat-system.md
-#   requirement: "Old damage formula using raw stats"
-#   created: 2026-03-10
-#   revised: ""
-#   status: superseded-by: TR-combat-001
+  # --- Point Cloud Renderer (design/gdd/point-cloud-renderer.md) ---
+  - id: TR-pc-001
+    system: point-cloud
+    gdd: design/gdd/point-cloud-renderer.md
+    requirement: "All player-visible output is THREE.Points; no THREE.Mesh with a visible material is ever rendered to the player camera"
+    created: 2026-07-02
+    revised: ""
+    status: active
+  - id: TR-pc-002
+    system: point-cloud
+    gdd: design/gdd/point-cloud-renderer.md
+    requirement: "Additive independent point layers by category (BASE / ENTITY_SPIKE / ENTITY_GHOST / VOID_MASK); layers add to the scene, never replace BASE"
+    created: 2026-07-02
+    revised: ""
+    status: active
+  - id: TR-pc-003
+    system: point-cloud
+    gdd: design/gdd/point-cloud-renderer.md
+    requirement: "Type A void rendered as a depth-only invisible occluder mesh blocking BASE points; requires Three.js r171 depthWrite/colorWrite/renderOrder verification (renderer OQ1, HIGH engine risk, unresolved)"
+    created: 2026-07-02
+    revised: ""
+    status: active
+  - id: TR-pc-004
+    system: point-cloud
+    gdd: design/gdd/point-cloud-renderer.md
+    requirement: "Point budget ceiling (default 1,500,000; max ~2M); density auto-scales uniformly at scene load to fit; BASE rebuild is single-frame with no pop"
+    created: 2026-07-02
+    revised: ""
+    status: active
+  - id: TR-pc-005
+    system: point-cloud
+    gdd: design/gdd/point-cloud-renderer.md
+    requirement: "60 FPS target at the point budget ceiling on minimum-spec desktop (AC-P01: avg >=55 FPS over 300 frames)"
+    created: 2026-07-02
+    revised: ""
+    status: active
+  - id: TR-pc-006
+    system: point-cloud
+    gdd: design/gdd/point-cloud-renderer.md
+    requirement: "Consume Floor Plan room AABB + surface list via the bus to build/rebuild BASE geometry; renderer owns no spatial data"
+    created: 2026-07-02
+    revised: ""
+    status: active
+  - id: TR-pc-007
+    system: point-cloud
+    gdd: design/gdd/point-cloud-renderer.md
+    requirement: "Per-frame BufferGeometry attribute mutation for proximity jitter/corruption on BASE points within entity influence radius"
+    created: 2026-07-02
+    revised: ""
+    status: active
+  - id: TR-pc-008
+    system: point-cloud
+    gdd: design/gdd/point-cloud-renderer.md
+    requirement: "Scan materialization overlay: progressive opacity ramp per capture angle, seal into BASE on complete, discard on abort"
+    created: 2026-07-02
+    revised: ""
+    status: active
+  - id: TR-pc-009
+    system: point-cloud
+    gdd: design/gdd/point-cloud-renderer.md
+    requirement: "Emit renderer:anomaly_density {type, sigma} when point density in a tile crosses the sigma threshold"
+    created: 2026-07-02
+    revised: ""
+    status: active
+
+  # --- FPS Movement (design/gdd/fps-movement.md) ---
+  - id: TR-mov-001
+    system: movement
+    gdd: design/gdd/fps-movement.md
+    requirement: "Two-state movement machine: NAVIGATE and SCAN_LOCKED only; no third state"
+    created: 2026-07-02
+    revised: ""
+    status: active
+  - id: TR-mov-002
+    system: movement
+    gdd: design/gdd/fps-movement.md
+    requirement: "Kinematic WASD locomotion + PointerLock mouse-look; no physics engine, no jump/crouch/sprint, fixed gait and eye height"
+    created: 2026-07-02
+    revised: ""
+    status: active
+  - id: TR-mov-003
+    system: movement
+    gdd: design/gdd/fps-movement.md
+    requirement: "AABB position clamp against room union-bounds each frame with WALL_MARGIN; dt hard-capped at 0.1s to prevent tab-restore tunnelling"
+    created: 2026-07-02
+    revised: ""
+    status: active
+  - id: TR-mov-004
+    system: movement
+    gdd: design/gdd/fps-movement.md
+    requirement: "PointerLock lifecycle: requested on first gesture, input pauses on loss but world/entity does not pause, never re-requested during SCAN_LOCKED"
+    created: 2026-07-02
+    revised: ""
+    status: active
+  - id: TR-mov-005
+    system: movement
+    gdd: design/gdd/fps-movement.md
+    requirement: "Bus integration: publishes player:position {x,y,z} each frame; receives movement:scan_triggered, scan:complete, scan:abort, floorplan:loop"
+    created: 2026-07-02
+    revised: ""
+    status: active
+  - id: TR-mov-006
+    system: movement
+    gdd: design/gdd/fps-movement.md
+    requirement: "Camera yaw/pitch via camera.rotation under YXZ order; pitch hard-clamped to +/-80deg (avoids gimbal singularity); yaw excludes pitch from movement"
+    created: 2026-07-02
+    revised: ""
+    status: active
+  - id: TR-mov-007
+    system: movement
+    gdd: design/gdd/fps-movement.md
+    requirement: "dt is an injected parameter to the update function (not an internal clock read) so the dt-cap and movement math are unit-testable (AC-EC03)"
+    created: 2026-07-02
+    revised: ""
+    status: active
+
+  # --- Floor Plan System (design/gdd/floor-plan-system.md) ---
+  - id: TR-fp-001
+    system: floor-plan
+    gdd: design/gdd/floor-plan-system.md
+    requirement: "Owns authoritative PropertyLayout data (room AABBs, doors, surfaces, node estimates); selected from curated pool or resolved from seed code"
+    created: 2026-07-02
+    revised: ""
+    status: active
+  - id: TR-fp-002
+    system: floor-plan
+    gdd: design/gdd/floor-plan-system.md
+    requirement: "Two-contract init: floorplan:init once (complete internal roster incl. hidden metadata, no hidden AABBs) + floorplan:update (renderable geometry only)"
+    created: 2026-07-02
+    revised: ""
+    status: active
+  - id: TR-fp-003
+    system: floor-plan
+    gdd: design/gdd/floor-plan-system.md
+    requirement: "Dollhouse is a derived view produced by filtering the layout through a per-room view-state mask; never exposes ANOMALY rooms, entity position, or true real-time scan state inside the desync window"
+    created: 2026-07-02
+    revised: ""
+    status: active
+  - id: TR-fp-004
+    system: floor-plan
+    gdd: design/gdd/floor-plan-system.md
+    requirement: "Dollhouse desync: position ring buffer (interpolated at now - desync_delay) + discrete scan-state queue with delay snapshotted at event time"
+    created: 2026-07-02
+    revised: ""
+    status: active
+  - id: TR-fp-005
+    system: floor-plan
+    gdd: design/gdd/floor-plan-system.md
+    requirement: "Looping geometry: per-door state machine (DORMANT/ARMED/TRIGGERED/COOLDOWN) with threshold-crossing detection; emits floorplan:loop, never mutates base geometry"
+    created: 2026-07-02
+    revised: ""
+    status: active
+  - id: TR-fp-006
+    system: floor-plan
+    gdd: design/gdd/floor-plan-system.md
+    requirement: "session_escalation (e) and desync_delay formulas; e consumes scan:coverage and session:tick, cubic desync curve"
+    created: 2026-07-02
+    revised: ""
+    status: active
+  - id: TR-fp-007
+    system: floor-plan
+    gdd: design/gdd/floor-plan-system.md
+    requirement: "Layout validation at load (door widths >=0.71m, navigability, exactly one ANOMALY_FINAL, >=1 STANDARD, D0<D_max, weight-sum guards); reject+reselect or hard-fail on pool exhaustion"
+    created: 2026-07-02
+    revised: ""
+    status: active
+  - id: TR-fp-008
+    system: floor-plan
+    gdd: design/gdd/floor-plan-system.md
+    requirement: "Bus integration: emits floorplan:init/update/reveal/loop; consumes player:position, session:tick, scan:*, entity:proximity, session:end"
+    created: 2026-07-02
+    revised: ""
+    status: active
+  - id: TR-fp-009
+    system: floor-plan
+    gdd: design/gdd/floor-plan-system.md
+    requirement: "Supplies the dollhouse view model to UI/HUD (room outlines, labels, estimated nodes, per-room freshness mask); requires a diegetic 'cached data' framing to exist"
+    created: 2026-07-02
+    revised: ""
+    status: active
+
+  # --- Scan Node System (design/gdd/scan-node-system.md) ---
+  - id: TR-sn-001
+    system: scan-node
+    gdd: design/gdd/scan-node-system.md
+    requirement: "Authoritative node registry + per-node state machine (UNSCANNED -> SCANNING -> VALID | INVALID; NULL permanent); single source of node truth"
+    created: 2026-07-02
+    revised: ""
+    status: active
+  - id: TR-sn-002
+    system: scan-node
+    gdd: design/gdd/scan-node-system.md
+    requirement: "Builds roster from floorplan:init; adopts authoritative real node positions from per-property session data (data/sessions/) with floor-plan estimate fallback. Position pipeline unspecified (Open Q#4)"
+    created: 2026-07-02
+    revised: ""
+    status: active
+  - id: TR-sn-003
+    system: scan-node
+    gdd: design/gdd/scan-node-system.md
+    requirement: "coverage = V/S where S = count(STANDARD)+1 (ANOMALY_FINAL), NULL excluded; pure function of node states, fixed at init, S invariant under reveal"
+    created: 2026-07-02
+    revised: ""
+    status: active
+  - id: TR-sn-004
+    system: scan-node
+    gdd: design/gdd/scan-node-system.md
+    requirement: "Emits canonical scan:complete/abort/coverage/integrity_* with internal state (status, coverage) updated BEFORE emission, same-tick equality of scan:coverage and scan:complete.coverage (AC-SN29)"
+    created: 2026-07-02
+    revised: ""
+    status: active
+  - id: TR-sn-005
+    system: scan-node
+    gdd: design/gdd/scan-node-system.md
+    requirement: "Integrity accumulator (monotonic invalid-capture count) with corruption_threshold single-fire scan:integrity_failure"
+    created: 2026-07-02
+    revised: ""
+    status: active
+  - id: TR-sn-006
+    system: scan-node
+    gdd: design/gdd/scan-node-system.md
+    requirement: "Records per-node entityCaptured and session-level entityEverCaptured from reported entityInFrame; read by Win/Lose for the bad ending"
+    created: 2026-07-02
+    revised: ""
+    status: active
+  - id: TR-sn-007
+    system: scan-node
+    gdd: design/gdd/scan-node-system.md
+    requirement: "nodesCompleted uses a STANDARD-only denominator (N); coverage uses N+1; the two numbers diverge deliberately and must not be reconciled"
+    created: 2026-07-02
+    revised: ""
+    status: active
+  - id: TR-sn-008
+    system: scan-node
+    gdd: design/gdd/scan-node-system.md
+    requirement: "Supplies node-ledger view model to UI/HUD; coverage must be the visually dominant/trust-bearing number and carry a non-colour channel"
+    created: 2026-07-02
+    revised: ""
+    status: active
+
+  # --- Session/Game State Orchestrator (design/gdd/orchestrator.md) ---
+  - id: TR-or-001
+    system: orchestrator
+    gdd: design/gdd/orchestrator.md
+    requirement: "Central pub/sub bus registering the canonical name + payload shape of every cross-system event in entities.yaml; only registered names are valid (verify-registry machine-check)"
+    created: 2026-07-02
+    revised: ""
+    status: active
+  - id: TR-or-002
+    system: orchestrator
+    gdd: design/gdd/orchestrator.md
+    requirement: "Session state machine LOADING -> ACTIVE -> SEALED (sole owner); produces session:tick per frame and session:end once; session:request_end {reason} intake"
+    created: 2026-07-02
+    revised: ""
+    status: active
+  - id: TR-or-003
+    system: orchestrator
+    gdd: design/gdd/orchestrator.md
+    requirement: "Deterministic per-frame delivery: global FIFO by arrival index + compiled override groups (directed + atomic), resolved as one stable sort on (groupAnchorIndex, intraGroupRank); override set compiled once, no runtime registerOverride"
+    created: 2026-07-02
+    revised: ""
+    status: active
+  - id: TR-or-004
+    system: orchestrator
+    gdd: design/gdd/orchestrator.md
+    requirement: "Latest-value events cached and replayed on subscribe vs discrete fire-and-forget; subscribe() synchronously reentrant during delivery; at most one delivery per emission per subscriber"
+    created: 2026-07-02
+    revised: ""
+    status: active
+  - id: TR-or-005
+    system: orchestrator
+    gdd: design/gdd/orchestrator.md
+    requirement: "session:tick elapsedSeconds is capped-dt game time (each frame delta clamped to dt_cap 0.1s), immune to tab-restore jumps (AC-OR34)"
+    created: 2026-07-02
+    revised: ""
+    status: active
+  - id: TR-or-006
+    system: orchestrator
+    gdd: design/gdd/orchestrator.md
+    requirement: "Bus wiring: src/main.js is the sole composition root; class modules get bus via constructor, flat modules via init(bus); no module-level singleton"
+    created: 2026-07-02
+    revised: ""
+    status: active
+  - id: TR-or-007
+    system: orchestrator
+    gdd: design/gdd/orchestrator.md
+    requirement: "Core Rule 5 enforced mechanically: ESLint import/no-restricted-paths forbids any src/systems/** module importing a sibling; bus is the only cross-system channel"
+    created: 2026-07-02
+    revised: ""
+    status: active
+  - id: TR-or-008
+    system: orchestrator
+    gdd: design/gdd/orchestrator.md
+    requirement: "Full delivery pass runs before renderer.render() within each rAF callback; dev-only perf tripwire warns when a tick's delivered-queue length exceeds PERF_TRIPWIRE_QUEUE_MAX"
+    created: 2026-07-02
+    revised: ""
+    status: active
+  - id: TR-or-009
+    system: orchestrator
+    gdd: design/gdd/orchestrator.md
+    requirement: "Static override set stored in src/core/event-overrides.js as a hand-authored literal, compiled once at construction; extended by editing the literal and rebuilding"
+    created: 2026-07-02
+    revised: ""
+    status: active
