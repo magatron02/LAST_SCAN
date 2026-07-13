@@ -96,16 +96,26 @@ it will do.
 | State | Description | Entry | Exit |
 |---|---|---|---|
 | `NAVIGATE` | Free WASD + mouse look, collision active | Session start (after PointerLock granted) | `movement:scan_triggered` from Scan Mechanic |
-| `SCAN_LOCKED` | All input revoked; camera auto-rotates via Scan Mechanic | `movement:scan_triggered` | `scan:complete` or `scan:abort` from Orchestrator |
+| `SCAN_LOCKED` | All input revoked; camera auto-rotates via Scan Mechanic | `movement:scan_triggered` | `movement:scan_released` (Scan Mechanic, successful-capture path) or `scan:abort` from Orchestrator (abort path) |
 
 Transitions are immediate — no animation or interpolation between modes.
 **Forbidden**: SCAN_LOCKED → SCAN_LOCKED (scan cannot be re-triggered while locked).
+
+> **Amended by Scan Mechanic GDD (2026-07-02):** the successful-completion exit is
+> `movement:scan_released {}` (new, from Scan Mechanic), fired the instant Scan Mechanic's 4th
+> capture beat completes — *before* Scan Node has validated the result (Scan Mechanic's
+> `PROCESSING`/`UPLOADING` phases run unlocked). `scan:complete` no longer needs to be listened
+> for as an unlock trigger; the existing Edge Case below ("if scan:complete/abort arrives while
+> in NAVIGATE: no-op") already makes its later arrival harmless. `scan:abort` remains the exit
+> for the abort path (unchanged — Escape during SCAN_LOCKED still routes through Scan Node's
+> canonical `scan:abort`, since abort is decided the instant it happens, before this system's
+> lock would otherwise release naturally).
 
 ### Interactions with Other Systems
 
 | System | Interface | Direction |
 |---|---|---|
-| Scan Mechanic | Emits `movement:scan_triggered {nodePosition}` → FPS Movement enters SCAN_LOCKED, camera snaps to nodePosition | Scan Mechanic → this |
+| Scan Mechanic | Emits `movement:scan_triggered {nodePosition}` → FPS Movement enters SCAN_LOCKED, camera snaps to nodePosition; emits `movement:scan_released {}` → FPS Movement exits SCAN_LOCKED to NAVIGATE (successful-capture path, before Scan Node validates) | Scan Mechanic → this |
 | Orchestrator | Emits `scan:complete` or `scan:abort` → exits SCAN_LOCKED, returns to NAVIGATE | Orchestrator → this |
 | Floor Plan System | Provides room AABB bounds → used for collision clamping each frame | Floor Plan → this |
 | Orchestrator | FPS Movement publishes `player:position {x, y, z}` each frame | This → Orchestrator |

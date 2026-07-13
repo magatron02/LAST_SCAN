@@ -6,6 +6,61 @@ any machine.
 
 ---
 
+## 2026-07-12 (round 4) — UI/HUD independent re-review: 3 blockers fixed, Rule 10 rewritten
+
+**What got done (this session):** ran `/design-review design/gdd/ui-hud.md` (full mode) as the
+round-4 **independent** re-review — the confirm-the-3-prior-blockers pass that round 3 (same day,
+earlier session) queued up. 6 specialists (game-designer, systems-designer, ux-designer,
+ui-programmer, qa-lead, audio-director) ran in parallel, then creative-director synthesized.
+
+**Verdict: NEEDS REVISION → revised same session.** All 4 round-3 blockers confirmed genuinely
+closed (no relabeling). 3 new blockers found and fixed:
+
+1. **Rule 2's dirty-check comparator was one level too shallow** for Scan Node's actual locked
+   view-model shape (nested `displayPosition`, `nodesCompleted {X,Y}`) — a literal implementation
+   would defeat AC-UH50 every tick, guaranteed not hypothetical [ui-programmer]. Fixed: structural
+   deep comparison, SameValueZero scalars (NaN-safe), array length-and-pairwise equality.
+2. **Rule 2's forced-write-on-reattach clause cited AC-UH50 as proof, but AC-UH50 never staged
+   that scenario** — 4th confirmed instance of this project's recurring "prose cites an AC that
+   never stages the scenario" defect [qa-lead]. Fixed: new AC-UH55.
+3. **Core Rule 10's "total awareness trade" was mechanically a free safe-harbor, not a trade**
+   [game-designer + audio-director]. Cross-checking Win/Lose's own AC-WL08 (Movement Violation
+   needs a `player:position` delta) showed a stationary player during `DOLLHOUSE_OPEN` cannot
+   trigger it, and no scan can run mid-modal — opening the dollhouse removed danger's
+   *possibility*, not just its warning. **User re-decided** (new mechanical evidence, not
+   re-litigation): **safe-while-open, trap-on-close.** Rule 10 rewritten — blackout scoped to
+   UI-owned channels only; danger now explicitly lands on re-attach (first blind step can be an
+   instant Movement Violation); A-A1/A-S1 "vacuous compliance" replaced with an honestly-labeled
+   authored risk routed to `/ux-design`. Opened new **Open Q#9**: locomotion suspension during
+   `DOLLHOUSE_OPEN` is a requirement placed on FPS Movement, unratified — that GDD currently
+   defines no dollhouse-adjacent input state.
+
+**7 recommended fixes also applied same pass:** debounce "last-fired" timestamp written only on
+actual fire (a burst could otherwise silence stings indefinitely); Orchestrator AC-OR08 cross-link
+pinning that end-of-tick audio evaluation must defer past the synchronous queued-event drain
+(microtask), not run inside the `session:tick` handler itself; Open Q#5 flagging extended from 7
+to 15 Integration ACs (was inconsistently applied); AC-UH12 rewritten as objective computed-style
+checks; new AC-UH56 (replace-not-stack); `coverage_dominance_ratio` backfire fallback
+pre-registered (→1.0 if playtest confirms manipulation-reads-as-manipulation); audio drone fallback
+clause (flat-sting strategy voids to graduated sting if the Audio System GDD never authors the
+drone it depends on).
+
+**AC count:** 55 → 57 (33 BLOCKING Logic + 16 BLOCKING Integration + 8 ADVISORY).
+
+**Files changed:** `design/gdd/ui-hud.md` (Rules 2/9/10, Formulas fallbacks, new AC-UH55/UH56, 8
+more Open-Q#5 flags, Open Q#9 added), `design/gdd/reviews/ui-hud-review-log.md` (round-4 entry
+appended), `design/gdd/systems-index.md` (UI/HUD status → In Review). Also ingested into
+`LS_obsidian_context/` (73 pages now — new UI-HUD-Review-Log source page; updated UI-HUD,
+FPS-Movement, Systems-Index, Coverage-as-False-Comfort, index, log).
+
+**NEXT:** Round-5 independent re-review in a fresh session (`/clear` →
+`/design-review design/gdd/ui-hud.md`) to confirm the 3 blockers are closed. FPS Movement's owner
+should ratify Open Q#9 (small, reviewable amendment) — can happen in the same fresh session. Then
+continue the remaining 5 unreviewed MVP GDDs (Point Cloud Renderer, FPS Movement, Scan Mechanic,
+Entity System, Win/Lose & Ending), then `/gate-check pre-production` re-attempt.
+
+---
+
 ## 2026-07-02 (architecture phase) — 6 ADRs written, review FAIL→CONCERNS, pre-prod gate FAIL
 
 **What got done (this session, Desktop):** ran the full 12-task architecture backlog the

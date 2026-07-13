@@ -37,7 +37,7 @@
 #   Each entry: name, status, source, referenced_by[], attributes{}, added, revised
 
 version: 1
-last_updated: "2026-07-02"  # Orchestrator #5 round-3 revision: scan:integrity_* "{...}" placeholders replaced with declared field sets; session:tick elapsedSeconds pinned as capped-dt game time; dt_cap constant registered (AC-OR01/AC-OR34)
+last_updated: "2026-07-02"  # Win/Lose & Ending #10 GDD complete: coverage and corruption_threshold referenced_by updated to win-lose-ending.md (closing out comments that already anticipated this GDD)
 
 # ─── ENTITIES ────────────────────────────────────────────────────────────────
 # Named game-world objects: enemies, NPCs, characters, factions, bosses.
@@ -147,13 +147,21 @@ events:
     kind: latest-value
     added: 2026-07-01
   - name: movement:scan_triggered
-    status: provisional  # producer Scan Mechanic #8 undesigned
+    status: provisional  # producer Scan Mechanic #8 in design (not yet reviewed)
     source: design/gdd/scan-mechanic.md
     registered_by: design/gdd/orchestrator.md
     consumers: [design/gdd/fps-movement.md]
     payload: "{nodePosition}"
     kind: discrete
     added: 2026-07-01
+  - name: movement:scan_released
+    status: provisional  # producer Scan Mechanic #8 in design (not yet reviewed); FPS Movement amended 2026-07-02 to consume it
+    source: design/gdd/scan-mechanic.md
+    registered_by: design/gdd/scan-mechanic.md
+    consumers: [design/gdd/fps-movement.md]
+    payload: "{} (transition marker)"
+    kind: discrete
+    added: 2026-07-02
   # -- scan family --
   - name: scan:coverage
     status: active
@@ -271,6 +279,23 @@ events:
     payload: "{type, sigma}"
     kind: discrete
     added: 2026-07-01
+  # -- scan mechanic post-capture flavor (UI/HUD undesigned) --
+  - name: scan:processing
+    status: provisional  # producer Scan Mechanic #8 in design (not yet reviewed); consumer UI/HUD #12 undesigned
+    source: design/gdd/scan-mechanic.md
+    registered_by: design/gdd/scan-mechanic.md
+    consumers: []  # UI/HUD #12 (undesigned) — diegetic PROCESSING progress bar
+    payload: "{progress}"
+    kind: latest-value
+    added: 2026-07-02
+  - name: scan:uploading
+    status: provisional  # producer Scan Mechanic #8 in design (not yet reviewed); consumer UI/HUD #12 undesigned
+    source: design/gdd/scan-mechanic.md
+    registered_by: design/gdd/scan-mechanic.md
+    consumers: []  # UI/HUD #12 (undesigned) — diegetic UPLOADING progress bar
+    payload: "{progress}"
+    kind: latest-value
+    added: 2026-07-02
 
 
 # ─── FORMULAS ────────────────────────────────────────────────────────────────
@@ -288,6 +313,7 @@ formulas:
     source: design/gdd/floor-plan-system.md
     referenced_by:
       - design/gdd/floor-plan-system.md
+      - design/gdd/entity-system.md  # computes this SAME formula locally (Core Rule 4) from shared session:tick/scan:coverage inputs, not a new event
       # Reads coverage from Scan Node System; drives perception-stripping intensity
     variables:
       - t
@@ -310,7 +336,7 @@ formulas:
     referenced_by:
       - design/gdd/scan-node-system.md
       - design/gdd/floor-plan-system.md  # session_escalation reads coverage as input
-      # Win/Lose GDD (when authored): inverted-reward ending evaluation (§9)
+      - design/gdd/win-lose-ending.md  # ending record snapshot (Core Rule 8); Escape/Completion Trap trigger evaluation
     variables:
       - V
       - S
@@ -383,11 +409,11 @@ constants:
     source: design/gdd/fps-movement.md
     referenced_by:
       - design/gdd/fps-movement.md
-      # Entity System GDD: entity chase speed defined relative to this
+      - design/gdd/entity-system.md  # Formula 2 crossover point (type_c_speed vs MOVE_SPEED, e≈0.815)
     value: 1.6
     unit: m/s
     added: 2026-06-26
-    revised: ""
+    revised: "2026-07-02"
 
   - name: EYE_HEIGHT
     status: active
@@ -482,10 +508,21 @@ constants:
     source: design/gdd/point-cloud-renderer.md
     referenced_by:
       - design/gdd/point-cloud-renderer.md
-      # Scan Mechanic GDD will reference this (total scan cycle = 4 × T)
+      - design/gdd/scan-mechanic.md  # Formula 1 (locked_duration) + Formula 2 (rotation window T)
     value: 0.5
     unit: seconds
     added: 2026-06-26
+    revised: "2026-07-02"
+
+  - name: h
+    status: active
+    source: design/gdd/point-cloud-renderer.md  # hold fraction, Formula 4 (scan_materialization_opacity); first cross-referenced by Scan Mechanic
+    referenced_by:
+      - design/gdd/point-cloud-renderer.md
+      - design/gdd/scan-mechanic.md  # Formula 2 reuses the same hold fraction as the camera's rotation-vs-hold split within each capture beat
+    value: 0.25
+    unit: "fraction (0-1)"
+    added: 2026-07-02
     revised: ""
 
   - name: proximity_tier_near
@@ -494,32 +531,43 @@ constants:
     referenced_by:
       - design/gdd/point-cloud-renderer.md
       - design/gdd/floor-plan-system.md  # loop_trigger_tier default = NEAR
-      # Entity System GDD will reference these distance bands
+      - design/gdd/entity-system.md  # Core Rule 2 tier computation (3.0-8.0m band)
     value: "d_min=3.0, d_max=8.0, J_max=0.020"
     unit: metres / metres-per-frame
     added: 2026-06-26
-    revised: ""
+    revised: "2026-07-02"
 
   - name: entity_influence_radius
     status: active
     source: design/gdd/point-cloud-renderer.md
     referenced_by:
       - design/gdd/point-cloud-renderer.md
-      # Entity System GDD will reference this (how far entity visual effects extend)
+      - design/gdd/entity-system.md  # Type B drift containment radius (Core Rule 7), reused not duplicated
     value: 5.0
     unit: metres
     added: 2026-06-26
-    revised: ""
+    revised: "2026-07-02"
 
   - name: proximity_tier_adjacent
     status: active
     source: design/gdd/point-cloud-renderer.md
     referenced_by:
       - design/gdd/point-cloud-renderer.md
-      # Entity System GDD will reference these distance bands
+      - design/gdd/entity-system.md  # Core Rule 2 tier computation (0.0-3.0m band)
     value: "d_min=0.0, d_max=3.0, J_max=0.180"
     unit: metres / metres-per-frame
     added: 2026-06-26
+    revised: "2026-07-02"
+
+  - name: proximity_tier_medium_max
+    status: active
+    source: design/gdd/entity-system.md  # completes the FAR/MEDIUM boundary proximity_tier_near/adjacent anticipated but never defined
+    referenced_by:
+      - design/gdd/entity-system.md
+      # UI/HUD GDD will likely reference this (proximity sensor bar intensity mapping)
+    value: 12.0
+    unit: metres
+    added: 2026-07-02
     revised: ""
 
   - name: T_session
@@ -539,12 +587,12 @@ constants:
     source: design/gdd/scan-node-system.md
     referenced_by:
       - design/gdd/scan-node-system.md
-      # Win/Lose GDD (when authored): integrity-failure ending (§11)
+      - design/gdd/win-lose-ending.md  # SCAN_CORRUPTION trigger fires on scan:integrity_failure, emitted once this threshold is reached (Core Rule 5)
       # UI/HUD GDD (when authored): integrity warning display
     value: 4
     unit: invalid/corrupted captures
     added: 2026-06-27
-    revised: ""
+    revised: "2026-07-02"
 
   - name: loop_trigger_tier
     status: active

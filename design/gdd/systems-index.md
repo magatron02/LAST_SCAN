@@ -37,11 +37,11 @@ UI, no jump scares, horror from the familiar made wrong, a found-footage cycle.
 | 5 | Persistence (localStorage) (inferred) | Persistence | Alpha | Not Started | — | — |
 | 6 | Audio System | Audio | Vertical Slice | Not Started | — | Entity System |
 | 7 | Session/Game State Orchestrator (inferred) | Core | MVP | Approved (round-4 independent re-review, 2026-07-02) | design/gdd/orchestrator.md | Point Cloud, FPS Movement, Scan Node |
-| 8 | Scan Mechanic | Gameplay | MVP | Not Started | — | FPS Movement, Scan Node, Point Cloud, Orchestrator |
-| 9 | Entity System | Gameplay | MVP | Not Started | — | Point Cloud, Floor Plan, Orchestrator |
-| 10 | Win/Lose & Ending | Gameplay | MVP | Not Started | — | Scan Node, Entity System, Orchestrator |
+| 8 | Scan Mechanic | Gameplay | MVP | Designed | design/gdd/scan-mechanic.md | FPS Movement, Scan Node, Point Cloud, Orchestrator |
+| 9 | Entity System | Gameplay | MVP | Designed | design/gdd/entity-system.md | Point Cloud, Floor Plan, Orchestrator |
+| 10 | Win/Lose & Ending | Gameplay | MVP | Designed | design/gdd/win-lose-ending.md | Scan Node, Entity System, Orchestrator |
 | 11 | Cycle / Meta Layer | Meta | Alpha | Not Started | — | Persistence, Win/Lose, Orchestrator |
-| 12 | UI / HUD | UI | MVP | Not Started | — | Scan Mechanic, Entity, Scan Node, Orchestrator |
+| 12 | UI / HUD | UI | MVP | In Review (round-4 revised 2026-07-12; round-5 independent re-review pending) | design/gdd/ui-hud.md | Scan Mechanic, Entity, Scan Node, Orchestrator |
 | 13 | Found-Footage Layer | UI | Vertical Slice | Not Started | — | UI / HUD, Orchestrator, Entity System |
 
 ---
@@ -153,10 +153,10 @@ UI, no jump scares, horror from the familiar made wrong, a found-footage cycle.
 | Metric | Count |
 |--------|-------|
 | Total systems identified | 13 |
-| Design docs started | 5 |
+| Design docs started | 9 |
 | Design docs reviewed | 3 (Floor Plan — Approved 2026-06-30; Scan Node — Approved 2026-07-01; Orchestrator — Approved 2026-07-02) |
 | Design docs approved | 3 (Floor Plan System, Scan Node System, Session/Game State Orchestrator) |
-| MVP systems designed | 5 / 9 |
+| MVP systems designed | **9 / 9 — all MVP systems designed** |
 | Vertical Slice systems designed | 0 / 2 |
 
 ---
@@ -165,30 +165,24 @@ UI, no jump scares, horror from the familiar made wrong, a found-footage cycle.
 
 > Read by `/design-system` Phase 2. Resolve each when the named system is designed.
 
-- **Entity System (#9) — canonical proximity-tier set.** The concept doc §5 lists
-  **5** descriptive proximity states (Far / Medium / Near / Very near / Adjacent),
-  but the `entity:proximity {tier}` event contract used by Point Cloud Renderer and
-  Floor Plan (`loop_trigger_tier`) uses **4** tiers: `FAR / MEDIUM / NEAR /
-  ADJACENT`. When designing Entity (#9), **declare the authoritative tier set** so
-  every consumer agrees, and register it in `entities.yaml`. (Surfaced by
-  `/consistency-check` 2026-06-27 — informational, not a conflict.)
+- ~~**Entity System (#9) — canonical proximity-tier set.**~~ **RESOLVED 2026-07-02**
+  by `design/gdd/entity-system.md` Core Rule 1: the 4-tier set `FAR / MEDIUM / NEAR /
+  ADJACENT` (already load-bearing in Point Cloud Renderer and Floor Plan) is ratified
+  as canonical. The concept doc §5's descriptive "Very near" state is not a discrete
+  tier — it describes the felt experience partway through `ADJACENT`'s own quadratic
+  jitter curve. `proximity_tier_medium_max` (12.0m, new) completes the FAR/MEDIUM
+  boundary in `entities.yaml`.
 
-- **UI/HUD (#12) — `nodesCompleted` vs `coverage` denominator divergence.** Scan
-  Node (#4) intentionally uses a **standard-only** denominator for the `NODES
-  COMPLETED X/Y` counter while `coverage` uses `N+1` (incl. anomaly node). The two
-  numbers diverge on purpose (escape player sees `12/12` + `92%`). Confirm the
-  player-experience framing with `creative-director` when designing the HUD, and do
-  not "reconcile" the two denominators. (Scan Node Open Q#1.)
+- ~~**UI/HUD (#12) — `nodesCompleted` vs `coverage` denominator divergence.**~~
+  **RESOLVED 2026-07-07** by `design/gdd/ui-hud.md` — the GDD does not reconcile the
+  two denominators; both render as-is, per Scan Node's original intent (Scan Node
+  Open Q#1).
 
-- **UI/HUD (#12) — inherited constraints from Scan Node's DEFERRED AC-SN31 + Trust
-  ordering requirement.** Scan Node's UI Requirements specify `coverage` must be the
-  visually **dominant** element over `nodesCompleted` (integer-completeness bias
-  otherwise makes "12/12" read as more authoritative than "92.3%," backwards from the
-  Inverted Reward's intent). AC-SN31 (DEFERRED (design)) tracks this as a priority but
-  has **no measurable proxy** — the HUD GDD must write its own AC with one (font-size
-  ratio, DOM order, contrast, or a playtest-verified trust read) rather than treat
-  AC-SN31 as already-testable. Do not satisfy this with a technically-larger-but-
-  psychologically-inert visual difference.
+- ~~**UI/HUD (#12) — inherited constraints from Scan Node's DEFERRED AC-SN31 + Trust
+  ordering requirement.**~~ **RESOLVED 2026-07-07** by `design/gdd/ui-hud.md` Core
+  Rule 4: `coverage_dominance_ratio` (default 1.5×, new tuning knob) gives AC-SN31 a
+  measurable proxy — larger font-size ratio + DOM/reading-order precedence — closing
+  it as `AC-UH09`–`AC-UH12`.
 
 - **Orchestrator (#5) — `scan:*` + `floorplan:*` contracts.** Scan Node (#4) emits
   authoritative `scan:complete` / `scan:abort` / `scan:coverage` /

@@ -1,9 +1,196 @@
 # Active Session State
 
-**Task:** Architecture phase (12-task backlog) — **DONE (2026-07-02)**. 6 ADRs written
-(ADR-0002..0007), ADR-0001 → Accepted, engine pinned r171, tests+CI green, UX foundations,
-re-review **FAIL→CONCERNS** (42/42 covered, 0 conflicts), pre-prod gate **FAIL** (4 MVP GDDs
-undesigned). **Status: architecture phase complete for designed systems; next = design 4 MVP GDDs.**
+**Task:** UI/HUD (#12) review — **round 4 independent re-review done (2026-07-12), NEEDS REVISION →
+revised same session.** 3 blockers found and fixed (Rule 2 dirty-check comparator too shallow for
+Scan Node's real VM shape; Rule 2's forced-write-on-reattach cited an AC that never staged the
+scenario; Core Rule 10's "total awareness trade" was mechanically a free safe-harbor — user
+re-decided to "safe-while-open, trap-on-close," opening new **Open Q#9** on FPS Movement). AC count
+55→57. `systems-index.md` status: UI/HUD → **In Review**. Full detail in
+`design/gdd/reviews/ui-hud-review-log.md` (round-4 entry, top) and `production/worklog.md` (top
+entry). Obsidian wiki (`LS_obsidian_context/`) ingested to match — 73 pages, see its own
+`wiki/log.md` top entry.
+
+**Next:** round-5 independent re-review in a **fresh session** (`/clear` →
+`/design-review design/gdd/ui-hud.md`) to confirm the 3 blockers are closed. FPS Movement's owner
+should ratify Open Q#9 (small amendment) — can happen in the same session. Then continue
+`/design-review` for the other 5 unreviewed MVP GDDs (Point Cloud Renderer, FPS Movement, Scan
+Mechanic, Entity System, Win/Lose & Ending), then re-run `/gate-check pre-production`.
+
+**All 9/9 MVP systems remain Designed** (since 2026-07-07/07-10) — this session's work was review,
+not new design content.
+
+(Older status lines below are historical — left in place rather than rewritten; see the "UI/HUD
+(#12) — GDD COMPLETE" entry further down for the 2026-07-10 design-complete state, and the entry
+above this note for the current, accurate state.)
+
+## Scan Mechanic — GDD complete (2026-07-02, Desktop)
+**Written & approved (all 8 + Open Questions):** Overview · Player Fantasy · Detailed Design ·
+Formulas (systems-designer consulted) · Edge Cases · Dependencies · Tuning Knobs · Visual/Audio
+Requirements · UI Requirements · Acceptance Criteria (41 ACs, qa-lead consulted) · Open Questions
+(6 items).
+
+**Key mechanics locked:** 5-phase sequence IDLE→INITIALIZING→CAPTURING(4 beats)→PROCESSING→
+UPLOADING→IDLE; camera-lock covers only INITIALIZING+CAPTURING (2.4s), PROCESSING/UPLOADING
+(2.0s) run unlocked — total 4.4s/scan; camera rotation reuses Point Cloud's `T`/`h` constants
+(no new knobs); entityInFrame = proximity-tier proxy (NEAR/ADJACENT at any of 4 beat samples);
+single-scan-in-flight; local already-valid tracking (no new subscription needed).
+
+**Side effects / cross-file changes this session:**
+- Amended `design/gdd/fps-movement.md` (States table + Interactions): new
+  `movement:scan_released {}` exit from `SCAN_LOCKED` (successful-capture path); `scan:abort`
+  still handles the abort path.
+- `entities.yaml`: registered `movement:scan_released`, `scan:processing`, `scan:uploading`
+  (provisional); registered `h` (hold fraction, Point Cloud-owned, previously unregistered) and
+  added scan-mechanic.md to `scan_frame_duration`'s referenced_by.
+- `systems-index.md`: Scan Mechanic → Designed, doc linked; MVP designed 5/9 → 6/9; docs started
+  5 → 6.
+
+**Open Questions logged (6):** two-nodes-in-range target selection (level-designer); entityInFrame
+precision proxy-vs-frustum (Entity System #9 author); interact-keybind (ux-designer); abort/
+processing SFX (sound-designer, `/asset-spec`); Depth-Only Preview §15-A explicitly out of scope
+(producer); Movement Violation now reachable during unlocked phases (Win/Lose #10 author).
+
+**NEXT:** `/design-review design/gdd/scan-mechanic.md` in a **fresh session** (never same-session
+as authoring). Then continue the remaining MVP GDDs — Entity System (#9, high-risk) next per the
+design order, then Win/Lose (#10), then UI/HUD (#12).
+
+## Entity System (#9) — GDD complete (2026-07-02, Desktop)
+**Written & approved (all 8 + Open Questions):** Overview · Player Fantasy · Detailed Design ·
+Formulas (3 formulas + tuning constants, systems-designer consulted) · Edge Cases · Dependencies
+· Tuning Knobs · Visual/Audio Requirements (art-director consulted, 2-round) · UI Requirements ·
+Acceptance Criteria (46 ACs, qa-lead consulted) · Open Questions (7 items).
+
+**Key resolution — RESOLVED the open cross-system item since 2026-06-27**: ratified the 4-tier
+proximity vocabulary (FAR/MEDIUM/NEAR/ADJACENT), already hard-baked into Point Cloud Renderer +
+Floor Plan, over the master GDD's 5-tier description. `proximity_tier_medium_max` (12.0m, new)
+completes the FAR/MEDIUM boundary. systems-index Open Cross-System Items updated to reflect
+resolution.
+
+**Other key decisions:** one entity instance with mutable type (not 3 simultaneous pools); Type
+C trails player's position history (4s lag) via its own ring buffer (mirrors Floor Plan's
+desync pattern); Entity computes Floor Plan's registered `session_escalation` (e) locally from
+shared inputs (no new event). Type C speed uses a cubic curve (matches `desync_delay` precedent:
+safe until e≈0.815, then exceeds MOVE_SPEED); Type A growth uses a diminishing-returns curve
+(asymptotic, decays not resets on leaving range); retarget cadence deliberately LINEAR (not
+cubic) to avoid stacking all three e-driven changes into one late-session cliff.
+
+**Side effects / cross-file changes:** `entities.yaml` — new `proximity_tier_medium_max`
+constant; `entity-system.md` added to referenced_by of `MOVE_SPEED`, `entity_influence_radius`,
+`proximity_tier_near`, `proximity_tier_adjacent`, `session_escalation`. `systems-index.md` —
+Entity System → Designed (7/9 MVP), tier-vocab item marked RESOLVED.
+
+**Open Questions logged (7):** type-selection probability at retarget unspecified (game-designer,
+before Vertical Slice — flagged as materially affecting difficulty); entityInFrame proxy
+implicitly ratified as the only option (informs Scan Mechanic Open Q#2); room-selection
+weighting qualitative not formula (systems-designer); Type B "mimics objects" is art-direction's
+(asset-spec time); all numeric defaults unplaytested (Vertical Slice); second simultaneous
+manifestation out of scope for MVP (Alpha+); loop-teleport-into-Type-A coincidence (Floor Plan's
+tuning, not this GDD's).
+
+**NEXT:** `/design-review design/gdd/entity-system.md` in a fresh session. Then continue —
+Win/Lose (#10) next, then UI/HUD (#12).
+
+## Win/Lose & Ending (#10) — GDD complete (2026-07-02, Desktop)
+**Written & approved (all 8 + Open Questions):** Overview · Player Fantasy · Detailed Design ·
+Formulas (1 tuning constant, systems-designer consulted) · Edge Cases · Dependencies · Tuning
+Knobs · Visual/Audio Requirements (brief, no pixels/audio of its own) · UI Requirements
+(text-variation matrix, narrative-director consulted — 2-register STATUS split;
+entityEverCaptured touches exactly one existing field, never a new line) · Acceptance Criteria
+(30 ACs, qa-lead consulted) · Open Questions (4 items).
+
+**Key decisions locked:**
+- **Ending taxonomy**: 4 mutually-exclusive PRIMARY outcomes (`ESCAPE`, `COMPLETION_TRAP`,
+  `MOVEMENT_VIOLATION`, `SCAN_CORRUPTION`) + `entityEverCaptured` as an independent text-modifier
+  flag (NOT a 5th category) — reinterprets master GDD §10.
+- **Completion Trap fires the instant `ANOMALY_FINAL` resolves VALID** (not literally
+  "coverage=100%"); **Escape fires the instant the last standard node resolves VALID with
+  anomaly still unscanned**; both fully automatic, no player-confirmed "end session" action.
+- **Movement Violation** via `player:position` delta (0.045m threshold, range 0.035-0.070m),
+  excludes frames where `floorplan:loop` also resolved.
+- **Precedence**: `MOVEMENT_VIOLATION > SCAN_CORRUPTION > COMPLETION_TRAP > ESCAPE`.
+  Single-fire guarantee mirrors Orchestrator's SEALED pattern.
+- **Ending-screen text structure** (narrative-director consult): only 2 fields branch on
+  outcome (coverage/nodesCompleted numeric pair + STATUS); STATUS is a 2-register split (not
+  4-way) — Escape/Completion Trap must read identically to each other (the whole Inverted Reward
+  mechanism); Movement Violation/Corruption share a different "interrupted" register, internally
+  differentiated from each other only.
+
+**Side effects:** `entities.yaml` — `coverage` and `corruption_threshold` referenced_by updated
+to `win-lose-ending.md` (closing out comments that already anticipated this GDD). No new
+constants/events needed — `movement_violation_threshold` is GDD-internal.
+
+**Real gap surfaced, not silently patched**: the ending record `{primaryOutcome, coverage,
+nodesCompleted, entityEverCaptured}` has **no `anomaliesLogged` field**, even though the UI
+Requirements matrix references `ANOMALIES LOGGED: [X]` from the master GDD's template — logged
+as Open Question #1, source system undecided (Point Cloud's `renderer:anomaly_density`? Entity
+manifestation count? a new Win/Lose-owned tally?).
+
+**Process note this session**: an early narrative-director consult on the text-variation matrix
+was lost mid-relay (a fresh Agent spawn was used to "follow up" instead of resuming the original
+via SendMessage+agentId — this created a genuinely new instance with no memory of the first
+consult). Recovered by properly resuming the original agent by its agentId. Lesson: always use
+SendMessage with the agentId to continue a specific prior agent, never a fresh Agent call.
+
+**NEXT:** `/design-review design/gdd/win-lose-ending.md` in a fresh session. Then the last
+remaining MVP GDD — **UI/HUD (#12)** — which will need to resolve the `anomaliesLogged` gap
+above as part of its own design, plus finalize the terminal-screen copy this GDD deferred.
+
+## UI/HUD (#12) — design session started (2026-07-07, resumed after an Obsidian-vault detour)
+Skeleton created at `design/gdd/ui-hud.md`. Review mode: lean. This is the **last MVP system**.
+Five sibling GDDs already lock most of this content (dollhouse view model, node ledger, scan
+readout, proximity bar, ending screen text-variation matrix). One reconciliation flagged for
+Section C: master GDD's "Tabs: Scan/Dollhouse/Log" phrasing vs. Floor Plan's later lock on the
+dollhouse as a toggle-key, fullscreen-blocking panel (not a peer tab). Also must resolve
+Win/Lose's `anomaliesLogged` gap and the deferred view-model transport mechanism (new bus event
+vs. composition-root wiring) both Floor Plan's and Scan Node's ADRs left open.
+**Written & approved:** none yet — skeleton just created.
+
+Note: a separate/concurrent process extended `LS_obsidian_context/` significantly beyond what
+this session built (71 pages, production history, QA, schema layer) — see that vault's own
+`wiki/log.md` for its history. Not this session's doing past the initial 2026-07-05 pass.
+
+**Key decisions locked so far:**
+- **Ending taxonomy**: 4 mutually-exclusive PRIMARY outcomes (`ESCAPE`, `COMPLETION_TRAP`,
+  `MOVEMENT_VIOLATION`, `SCAN_CORRUPTION`) + `entityEverCaptured` as an independent text-modifier
+  flag (NOT a 5th category) — reinterprets master GDD §10's "text varies... entity captured or
+  not" as one input among several to a single terminal screen, not a separate ending screen.
+- **Completion Trap fires the instant `ANOMALY_FINAL` resolves VALID** — mechanically triggered
+  by anomaly-node status, not literally "coverage=100%" (the two normally coincide but aren't
+  the same check).
+- **Escape fires the instant the last standard node resolves VALID with anomaly still unscanned.**
+- **Session end is fully automatic** — no player-confirmed "end session" UI action; matches the
+  "no warning, the game already knows" Player Fantasy thesis.
+- **Movement Violation** detected via `player:position` delta (not a new raw-input event from
+  FPS Movement) — `movement_violation_threshold=0.045m` (range 0.035-0.070m) — excludes frames
+  where `floorplan:loop` also resolved (avoids false-positive on system-driven teleports).
+- **Precedence order** if conditions coincide same-tick: `MOVEMENT_VIOLATION > SCAN_CORRUPTION >
+  COMPLETION_TRAP > ESCAPE`.
+- **Single-fire guarantee**: mirrors Orchestrator's SEALED pattern, no second outcome recorded.
+
+**REMAINING (resume here):** Edge Cases → Dependencies → Tuning Knobs → Visual/Audio
+Requirements → UI Requirements → Acceptance Criteria (qa-lead spawn, lean-mode Section H rule)
+→ Open Questions → Phase 5 (self-check, registry update if needed, systems-index update to
+Designed 8/9, offer `/design-review`).
+
+**Not yet touched, worth remembering when resuming:**
+- No registry updates made yet this GDD (movement_violation_threshold is GDD-internal per the
+  systems-designer's own note — only register later if another GDD ends up referencing it).
+- UI Requirements will need to define the actual terminal-screen text per outcome (§10's
+  `UPLOAD COMPLETE` / `SCAN COVERAGE` / etc. template) — this is where the ending record
+  (Core Rule 8) actually gets consumed.
+- No cross-GDD amendments needed so far (unlike Scan Mechanic's FPS Movement amendment) — Scan
+  Node, Entity System, Floor Plan, FPS Movement all already emit exactly what this GDD consumes.
+**Key facts loaded before starting:** must confirm (not redefine) `movement:scan_triggered`,
+`scan:started`, `scan:captured`, `scan:capture_frame` shapes (already provisional in
+entities.yaml); must resolve Scan Node's Open Q#2 (`entityInFrame` source — Scan Mechanic vs
+Entity System); owns `camera.rotation` writes during SCAN_LOCKED per ADR-0004 (FpsMovement's
+update() no-ops on rotation while locked); Point Cloud's `scan_frame_duration`=0.5s/angle is
+the pacing scaffold (4-angle capture ≈2.0s minimum) already registered.
+**Resume**: continue the section cycle from wherever `[To be designed]` remains in the file.
+
+## Architecture phase complete — 12/12 tasks (2026-07-02, Desktop)
+- **ADR-0002 Point Cloud** (Proposed, OQ1 prototype-gated) · **0003 Per-Frame Budget** ·
+  **0004 Movement+Input** (native PointerLock, not the addon) · **0005 Session Data** (one
 
 ## Architecture phase complete — 12/12 tasks (2026-07-02, Desktop)
 - **ADR-0002 Point Cloud** (Proposed, OQ1 prototype-gated) · **0003 Per-Frame Budget** ·
@@ -275,5 +462,55 @@ overrides; latest-value-cache vs discrete-fire-and-forget (Core Rule 7) for late
 - Open reports: `BUG-0001`, `BUG-0002`, `BUG-0003` under `production/qa/bugs/`.
 - `production/qa/`, `.agents/`, `.codex/`, and `AGENTS.md` remain untracked until explicitly committed.
 - No `tests/` directory exists yet.
+
+---
+
+## UI/HUD (#12) — GDD COMPLETE (2026-07-07, Desktop)
+
+**All 9/9 MVP systems are now Designed.** This closes out the MVP design pass this session (and
+the several before it) was working toward.
+
+**Written & approved (all 8 + Open Questions):** Overview · Player Fantasy · Detailed Design (9
+Core Rules, 3 States: `HUD_ACTIVE`/`DOLLHOUSE_OPEN`/`TERMINAL`) · Formulas (`coverage_dominance_ratio`,
+systems-designer consulted) · Edge Cases (7) · Dependencies · Tuning Knobs · Visual/Audio
+Requirements (art-director consulted) · UI Requirements · Acceptance Criteria (48 ACs — 24
+BLOCKING Logic + 15 BLOCKING Integration + 9 ADVISORY, qa-lead consulted) · Open Questions (4
+items).
+
+**Key decisions locked:**
+- No literal "tab" metaphor: always-visible HUD instrument view + one toggle-modal (Dollhouse,
+  fullscreen-blocking, occludes the HUD entirely — DOM removal, not z-index hiding). Log panel
+  explicitly out of scope (no designed content exists for it yet).
+- View-model transport: composition-root DI + per-render-tick polling of existing
+  `get*ViewModel()` methods — resolves the transport question both Floor Plan's ADR-0006(g) and
+  Scan Node's ADR-0007(h) deferred. Recorded as a recommendation for this system's own future ADR,
+  not yet formalized.
+- `coverage_dominance_ratio` (default 1.5×, range 1.3×–1.75×, new tuning knob) gives Scan Node's
+  previously-`DEFERRED` `AC-SN31` a measurable proxy (font-size ratio + DOM/reading-order
+  precedence) — first concrete resolution after 2 sibling GDDs carried it forward as prose only.
+- `anomaliesLogged` (Win/Lose's flagged gap) = session-cumulative count of
+  `renderer:anomaly_density` events, tallied by UI/HUD itself, frozen at the `SEALED` snapshot.
+- Audio-alert dedup: `renderer:anomaly_density` and escalation-relevant `entity:proximity` tier
+  changes landing in the same tick fire the audio sting once, not once per event; visual display
+  stays independent per event. Either event type landing the same tick as `SEALED` fires no tone
+  at all — Rule 7's freeze wins.
+
+**Mid-session numbering bug (self-caught and fixed):** a Core Rule insertion was initially placed
+out of order (labeled "7b" before the existing Rule 7). Fixed by removing the misplaced insertion
+and re-appending it as a properly-numbered Rule 9 after the existing Rule 8, preserving Rules 1–8
+exactly as originally written.
+
+**Side effects / cross-file changes this session:**
+- `systems-index.md`: UI/HUD row → Designed, doc linked (`design/gdd/ui-hud.md`); MVP designed
+  8/9 → **9/9**; docs started 8 → 9; both UI/HUD Open Cross-System Items marked RESOLVED
+  (denominator divergence confirmed as intentional, AC-SN31 given its measurable proxy).
+- No `entities.yaml` registry update — `coverage_dominance_ratio` is single-GDD, no cross-system
+  reuse, per the systems-designer's own note during the Formulas consult.
+
+**NEXT:** Offer `/design-review design/gdd/ui-hud.md` in a **fresh session**. Beyond that, the
+project's next milestone is independent review of the 6 still-unreviewed MVP GDDs (Point Cloud
+Renderer, FPS Movement, Scan Mechanic, Entity System, Win/Lose, UI/HUD), then a
+`/gate-check pre-production` re-attempt — all 9 MVP systems being Designed was the blocking
+criterion the prior gate-check FAILed on.
 
 <!-- CONSISTENCY-CHECK: 2026-07-01 | GDDs checked: 5 | Conflicts found: 0 | Verdict: PASS -->
