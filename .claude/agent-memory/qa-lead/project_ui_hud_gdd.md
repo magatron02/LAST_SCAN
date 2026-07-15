@@ -82,3 +82,32 @@ exercising the anti-repeat branch. Tag-count arithmetic (32 Logic + 15 Integrati
 Advisory = 55) verified correct by direct AC recount; the 9→8 ADVISORY figure some earlier
 round text cites is not a live inconsistency — it's explained by AC-UH42's round-2
 ADVISORY→Integration retag (confirmed in `ui-hud-review-log.md` line 104).
+
+**Round 7 (2026-07-13, independent re-review): AC count/tag arithmetic (60 = 36 Logic + 16
+Integration + 8 Advisory) and the 16-item Open-Q#5-blocked Integration list both verified
+correct by direct recount — no discrepancy this round.** The self-referential AC citations
+checked (AC-UH52 self-cite, AC-UH54/UH58↔Rule 10, AC-UH24's "same method as AC-UH23") were all
+accurate.
+
+**New finding — 5th confirmed instance of the citation-integrity/exhaustiveness-claim defect
+class (round 6 log already called this "a controlled experiment with an unambiguous result:
+human review cannot close this class").** Round 6 added Rule 2's "First-tick cold start"
+sentinel sub-clause as a *recommended* fix (mirroring Rule 9's `-Infinity` sentinel) — but its
+own prose self-admits "AC-UH50's N-consecutive-unchanged-ticks setup begins *after* this first
+forced write, so it does not exercise the cold start; the sentinel choice is a stated contract,
+not a test-covered one." No AC tests it. Yet the Acceptance Criteria section's "exhaustive by
+construction" claim and the Coverage Validation table list only the Log panel (Rule 1) as the
+sole exception — Rule 2's cold-start clause is a second, undisclosed exception. Contrast: Rule
+9's analogous sting cold-start sentinel *did* get a real AC (UH52's zero-prior-fires branch,
+added round 6 for the exact same reason) — so the doc got this right once and missed it the
+second time in the same round. Secondary/minor: the Coverage Validation table's Rule 9 row
+(AC-UH27/28/29/57/52) omits AC-UH54, even though Rule 9's own prose contains a "DOLLHOUSE_OPEN
+suppression" bullet asserting the tone is suppressed — that assertion's only citation is via
+Rule 10's row, not Rule 9's own.
+
+**How to apply going forward:** whenever a round's "recommended, applied" fix list adds new
+Core Rule prose (not just fixes an existing AC's citation), check whether that new prose was
+also given a covering AC — a "recommended" fix is exactly the kind of low-scrutiny addition
+this defect class hides in, distinct from the higher-scrutiny "blocking item" fixes. This is a
+new standing check to add alongside the existing same-tick/sequential-gap check
+([[project_floor_plan_gdd]] pattern).

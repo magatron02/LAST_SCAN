@@ -2,7 +2,7 @@
 
 > **Status**: In Design
 > **Author**: magatron02 + agents
-> **Last Updated**: 2026-07-12
+> **Last Updated**: 2026-07-13
 > **Implements Pillar**: Diegetic Matterport UI — no external HUD
 
 ## Overview
@@ -108,7 +108,10 @@ the one thing they needed to know.
    underlying view model is unchanged. **Equality is by value over the rendered fields, compared
    structurally to full depth.** Nested plain-data objects — e.g. the ledger's per-node
    `displayPosition` and the top-level `nodesCompleted {X, Y}`, real nested shapes Scan Node's
-   view model already locks — are compared recursively field-by-field; arrays are equal **iff
+   view model already locks — are equal **iff their key sets match (same keys, same count) AND each
+   field compares equal recursively** (a field-walk keyed off only one side's own properties is
+   non-conforming — it would miss an added/removed key, the object-shape analogue of the array
+   grow/shrink bug); arrays are equal **iff
    their lengths match AND their elements compare equal pairwise** (a `min(length)` iteration that
    ignores grow/shrink is non-conforming); scalars compare by **SameValueZero** (`Object.is`-style
    semantics, so a legitimately-`NaN` field equals itself and cannot force a DOM write on every
@@ -120,12 +123,29 @@ the one thing they needed to know.
    object/array on every call, so reference equality alone would never match and would silently
    defeat this rule. Reference equality is a permitted *fast path* when references do happen to
    match, never the required mechanism. This is a hard requirement, not an optimization (AC-UH50).
+   **Cost bound.** The deep compare runs every tick against the 16.6 ms / 60 FPS budget
+   (`technical-preferences.md`), so it is only affordable because both polled view models are
+   **small and bounded**: the node ledger is one entry per scan node at realistic node counts (Scan
+   Node's own view-model shape), and the dollhouse view model is a fixed-shape summary — not an
+   unbounded per-point structure. A per-point collection MUST NOT be routed through this per-tick
+   compare; if a future view model grows unbounded, this contract needs a keyed/versioned dirty-flag
+   instead of a full structural walk. The reference-equality fast path above short-circuits the
+   common unchanged-tick case before the deep walk runs.
    **Re-attach invalidates the cache.** Because the always-visible HUD's `getNodeLedgerViewModel()`
    is *not* polled while detached during `DOLLHOUSE_OPEN` (Rule 1), its cached "previous tick" value
    goes stale during that interval. On re-attach the HUD MUST discard that cached value and force a
    write on the first post-re-attach tick regardless of the equality result — otherwise the HUD
    could re-appear showing multi-tick-old state. The detached subtree's reference is held on the HUD
-   instance (not a module-level global), so ownership is unambiguous. (AC-UH50.)
+   instance (not a module-level global), so ownership is unambiguous. (AC-UH55 stages this exact
+   detach→re-attach→value-identical forced write; AC-UH50's continuous-polling setup never enters it.)
+   **First-tick cold start.** Before the HUD's very first render tick the "previous tick" cache holds
+   a distinct sentinel (never a real or default-shaped view model), so the equality check on the first
+   tick always fails and the first render always writes — the same reasoning as Rule 9's `-Infinity`
+   sting sentinel, applied to the dirty-check. A cache initialised to an empty object or a plausible
+   default view model is non-conforming: it could compare equal to a genuinely-empty first view model
+   and skip the session's first paint. (AC-UH50's N-consecutive-unchanged-ticks setup begins *after*
+   this first forced write, so it does not exercise the cold start; the sentinel choice is a stated
+   contract, not a test-covered one.)
 
 3. **Never expose what a producing system forbids.** This system inherits, verbatim, every
    "must never expose" constraint already written into a sibling GDD's UI Requirements:
@@ -172,8 +192,9 @@ the one thing they needed to know.
      This rules out both "always the first string" (repetitive) and unbounded pure-random
      (clustered repeats) implementations. The concrete per-pool string list is inherited from
      master GDD §7 and finalized in the error-bar UX spec (`design/ux/hud.md`, Open Q#2); this GDD
-     fixes the *selection discipline*, not the exact copy. (AC-UH16–19 test pool membership;
-     AC-UH19b tests non-repetition.)
+     fixes the *selection discipline*, not the exact copy. (AC-UH16–18 test pool membership per tier;
+     AC-UH19 tests tier-independent anomaly-density push, not membership; AC-UH19b tests
+     non-repetition.)
    - **Error-bar display discipline.** The error bar shows **one** message at a time; a new message
      **replaces** the current one (no stack, no scrollback). Rapid successive pushes therefore never
      accumulate — the bar always reflects the most recent error only. A pushed message persists until
@@ -270,6 +291,13 @@ the one thing they needed to know.
      updates the timestamp; otherwise a sustained burst arriving faster than the interval would
      push the timestamp forward indefinitely and silence stings for the whole burst — exactly the
      flooding case the debounce exists to bound, inverted into a mute switch.
+     **Cold-start sentinel.** Before any sting has fired this session the last-fired timestamp MUST
+     be initialised to a sentinel that is unconditionally ≥`error_sting_min_interval_ms` in the past
+     — `-Infinity` (or `null` special-cased to "always fire"), **never `0`**. A `0` initial value
+     against a mock clock that also starts at `0` (AC-UH52's own methodology) would compute an
+     offset `< interval` and wrongly suppress the session's very first sting. The first
+     error-triggering event of a session always fires (subject only to the same-tick/`SEALED`/
+     `ADJACENT`/`DOLLHOUSE_OPEN` suppressions). (AC-UH52.)
      **Clock source:** the debounce interval is measured on an **injected monotonic wall-clock
      source** (`performance.now()` in production; a mock clock in tests, per AC-UH52) — **not** on
      `session:tick.elapsedSeconds`, which this system already disclaims. Open Q#7's boundary-only
@@ -299,18 +327,50 @@ the one thing they needed to know.
     approaching, and Entity System dwell keeps accruing (tier-based, not movement-based). The
     trade therefore lands on **close**, not during: the player may re-attach already at
     `ADJACENT`, having received no warning, and their first blind step can be an instant Movement
-    Violation. Rule 2's forced write is the one honest beat — the freshest cached error message
-    renders on the first post-re-attach tick, exactly one readable frame between "map down" and
-    "your move." The map is not where the danger is; putting it away is.
+    Violation. Rule 2's forced write puts the freshest cached error message on screen on the first
+    post-re-attach tick — but **that single 16.6 ms frame is an input-lockout guarantee, not a
+    perceptible warning**: it is far below human read-and-react time (~200 ms+), so the player cannot
+    actually process the message within it. What it buys is a *race-condition* guarantee, not a
+    reaction budget.
+    **Reattach input-lockout — fixed here: no Movement Violation can resolve on the reattach frame.**
+    The round-5 version deferred *whether* the single forced frame was a sufficient reaction budget to
+    an unwritten `/ux-design` spec, leaving a same-frame instant-loss possible on the first blind step.
+    That specific race is now settled at the mechanic level: on the `DOLLHOUSE_OPEN → HUD_ACTIVE`
+    transition the HUD enters a **one-tick reattach-grace sub-state** — the forced-write tick (Rule 2)
+    — during which it does **not** emit the locomotion-resume signal. Because the player cannot produce
+    the `player:position` delta AC-WL08 requires until locomotion actually resumes (the *following*
+    tick), **no Movement Violation can resolve on the reattach frame itself**. This closes the
+    *simultaneous-frame* death race only — it is **not** a claim that the player has a fair chance to
+    read the warning and evade. On the very next tick the player, possibly already holding a movement
+    key, can step blind into `ADJACENT`. So the trap still lands on close and remains, by design,
+    consistent with the Player Fantasy's "cumulative… only in hindsight" anchor (§B): the fix removes a
+    zero-warning *engine race*, not the hindsight beat itself. **AC-UH58** (BLOCKING Logic) asserts the
+    input-lockout at the state-machine level — the state timing, not a perceptual guarantee.
+    **Cross-system seam.** The *enforcement* that the player physically cannot translate on the
+    grace tick rides FPS Movement honouring the withheld resume signal — i.e. it depends on Open Q#9's
+    locomotion-suspension contract, whose release timing this rule now pins to "one tick after
+    reattach, not simultaneous." UI/HUD owns the grace-tick state and the resume-signal timing
+    (testable here); FPS Movement owns obeying it (Open Q#9). Whether a *human-scaled* reaction budget
+    (a multi-frame readable interval or an on-close cue) is warranted at all — beyond this one-tick
+    engine-race fix — remains an open `/ux-design` dollhouse-spec call, not resolved here.
     **Bookkeeping continues un-suppressed** — events are still cached (Rule 2), `anomaliesLogged`
     still increments (Rule 5); only *presentation* is withheld, never state.
-    **Accessibility note — authored risk, not A-A1/A-S1 compliance.** During this window no
-    survival-relevant cue exists on any UI-owned channel for *any* player — a total-blackout case
-    outside what A-A1/A-S1 were written to test (single-channel reliance). This GDD does not claim
-    those requirements are satisfied here; the blackout is recorded as an **unclassified authored
-    risk** for `/ux-design` (`design/ux/dollhouse.md`) to evaluate on its own terms — specifically
-    reattach-shock and reaction-time fairness on close, which affect hearing and non-hearing
-    players identically. (AC-UH54.)
+    **Accessibility note — authored risk, not A-A1/A-S1/A-V/reduced-distortion compliance.** During
+    this window no survival-relevant cue exists on any UI-owned channel for *any* player — a
+    total-blackout case outside what A-A1/A-S1 were written to test (single-channel reliance). This
+    GDD does not claim those requirements are satisfied here. **Reduced-distortion-mode users are
+    explicitly no better off:** because zero alerts render during `DOLLHOUSE_OPEN`, AC-UH44's
+    two-non-distortion-channel guarantee is **not exercised** — it passes *vacuously*, not because
+    the protection is present. The blackout is strictly worse than any single-channel case AC-UH44
+    was built to catch, for every accessibility profile equally (hearing/non-hearing, reduced-
+    distortion on/off). This is recorded as an **unclassified authored risk** for `/ux-design`
+    (`design/ux/dollhouse.md`) to evaluate on its own terms — specifically the **in-modal blackout**
+    itself (zero cue while open), which affects all accessibility profiles identically. The *reattach*
+    half is only *partially* closed: the one-tick input-lockout (BLOCKING **AC-UH58**) removes the
+    simultaneous-frame death race, but it is **not** a human-scaled reaction budget — whether the
+    close transition needs a genuine readable interval for any accessibility profile remains a
+    `/ux-design` question alongside the while-open blackout, not settled here.
+    (AC-UH54.)
 
 ### States and Transitions
 
@@ -500,7 +560,7 @@ adding motion).
 | Dollhouse toggle **open** | Short (<150ms) mechanical relay-click / solenoid-snap, slight upward micro-inflection | Reads as the instrument physically engaging a display mode, not a UI chime; duration capped so the sound never outlasts the instant visual cut. *Deliberately **not** a "shutter" transient — §13 reserves the camera-shutter motif for `Scan initializing`, the core diegetic verb; the Dollhouse toggle must not borrow it and risk a false scan-affordance.* |
 | Dollhouse toggle **close** | Same transient family, slight downward micro-inflection | Mirrors Scan Mechanic's convention of distinguishing states via directional motif on one sound family, not a new instrument |
 | New error message appears in error bar (tiers `FAR`–`NEAR`) | Short (~100–200ms) single low tone with subtle distortion — **flat, non-escalating** across `FAR`–`NEAR` | Refines master GDD §13's existing "Error message" row by pinning it to a discrete trigger (each new string pushed to the bar); deliberately does not scale with proximity tier |
-| New error message appears at `ADJACENT` | **No sting** — the message displays silently | §13 defines `ADJACENT` as "all sound drops except low subsonic rumble." The sting yields to that silence-drop so it does not become the loudest sound at the exact tier meant to go quiet. The error text still appears; only its audio cue is suppressed. (Rule 6, Rule 9, AC-UH48) |
+| New error message appears at `ADJACENT` | **No sting** — the message displays silently | §13 defines `ADJACENT` as "all sound drops except low subsonic rumble." The sting yields to that silence-drop so it does not become the loudest sound at the exact tier meant to go quiet. The error text still appears; only its audio cue is suppressed. (Rule 6, Rule 9; trigger logic BLOCKING **AC-UH57**, cue character ADVISORY AC-UH48) |
 
 Both cues are pure mechanical/procedural transients — no musical stingers, consistent with the
 existing audio table's vocabulary (servo, whir, click, chime).
@@ -537,9 +597,33 @@ of its own eventual detailed UX specs, not a hand-off to another system.
 
 - **Accessibility compliance is inherited, not re-derived.** Every requirement in
   `design/ux/accessibility-requirements.md` applies directly: non-colour channel on the coverage
-  ring and node status (A-V1); full input remapping for the Dollhouse toggle key (A-M1); and the
+  ring and node status (A-V1); **independent text scaling (A-V2)**; full input remapping for the
+  Dollhouse toggle key (A-M1); and the
   screen-reader-limitation acknowledgment (A-S1) — this system is where A-S1's "at least two of
   {shape, position, text, distortion}" requirement is actually implemented, not just specified.
+- **A-V2 (text scaling) composes with `coverage_dominance_ratio` by uniform multiplication — the
+  ratio is preserved, but absolute size needs its own clamp.** There are **two distinct grid-break
+  failure modes and they must not be conflated**:
+  - **Ratio break (handled by uniform application).** `coverage_dominance_ratio` (Rule 4) sets the
+    *ratio* between `coverage` and `nodesCompleted`; A-V2's user text-scale multiplies the **whole HUD
+    type scale uniformly**, so both numbers scale by the same A-V2 factor and the coverage:nodesCompleted
+    ratio is **invariant** under A-V2. This rules out the naïve failure of applying A-V2 to `coverage`'s
+    *already-dominance-scaled* size as an independent third multiplier (1.75 × 1.5 = 2.625× on `coverage`
+    alone while `nodesCompleted` stays at 1.5×), which would compound the ratio past Rule 4's ceiling.
+    The contract: **A-V2 applies to both elements uniformly** (equivalently, apply the ratio to the base
+    scale then A-V2 to the result — the two operations commute, so order is not the invariant; *uniform
+    application to both numbers* is). Ratio invariance holds at **any** A-V2 value. (AC-UH59 part 1.)
+  - **⚠ Absolute break (NOT handled by ratio invariance — needs an explicit clamp).** Rule 4's own
+    upper-bound rationale is about `coverage`'s **absolute** size (~1.75× base) breaking the shared
+    clinical grid — a concern ratio invariance says **nothing** about. `accessibility-requirements.md`
+    documents A-V2 only as a **floor** ("scalable ≥1.5× without loss of meaning") with **no ceiling**;
+    an in-spec A-V2 = 3× therefore renders `coverage` at `1.75 × 3 = 5.25×` base — an absolute size the
+    grid was never validated against. **Contract:** the HUD MUST apply an **absolute maximum
+    font-size / container clamp** to the co-located widget, independent of `coverage_dominance_ratio`,
+    so that at large A-V2 the widget reflows/clamps rather than overrunning the clinical grid. This is a
+    UI-authorable clamp (this GDD's own to specify); **separately, an explicit A-V2 upper bound is
+    routed to `accessibility-requirements.md`** — pinning a documented ceiling there is that spec's call,
+    not this GDD's. (AC-UH59 part 2.)
   **A-V3 (photosensitivity ceiling) is satisfied vacuously for this system: UI/HUD renders no
   flicker, flash, or time-phased animation of its own.** The error bar updates by discrete text
   *replacement* (Rule 6), not a pulse or flash; the proximity-tier point-cloud flicker that A-V3
@@ -562,8 +646,11 @@ of its own eventual detailed UX specs, not a hand-off to another system.
 
 ## Acceptance Criteria
 
-57 criteria: 33 BLOCKING (Logic) + 16 BLOCKING (Integration) + 8 ADVISORY (of which AC-UH47/UH48
-are ADVISORY — PROVISIONAL, pending the Audio System GDD). Unlike Win/Lose or
+60 criteria: 36 BLOCKING (Logic) + 16 BLOCKING (Integration) + 8 ADVISORY (of which AC-UH47/UH48
+are ADVISORY — PROVISIONAL, pending the Audio System GDD). AC-UH58 was upgraded ADVISORY → BLOCKING
+(Logic) in round 6 — the reattach **input-lockout** is now a state-machine timing assertion (one-tick
+reattach-grace, resume-signal withheld), not a playtest deferred to `/ux-design`. It asserts the
+engine-race guarantee only, not a human-perceptible reaction budget (Rule 10). Unlike Win/Lose or
 Entity System, this system *is* the presentation layer — its rendering, layout, and feel work is
 ADVISORY (screenshot + lead sign-off, per `.claude/docs/coding-standards.md`'s Testing Standards
 table), while its pure computation (tally logic, ratio math + clamp, message-pool selection, audio
@@ -571,13 +658,14 @@ dedup + debounce, state gating, dirty-check) is BLOCKING like any other Logic/In
 panel, Rule 1) is explicitly out of scope for this GDD and is flagged N/A below rather than given
 a criterion.
 
-> **⚠ Fifteen Integration ACs are currently unwritable** — AC-UH05–08, UH10, UH15, UH22–26, UH35,
-> UH42, UH50, and UH55 assert rendered DOM/CSS/text output and require the jsdom/Testing Library
+> **⚠ Sixteen Integration ACs are currently unwritable** — AC-UH02, UH05–08, UH10, UH15, UH22–26,
+> UH35, UH42, UH50, and UH55 assert rendered DOM/CSS/text output and require the jsdom/Testing Library
 > harness that is **not yet on the allowed-libraries list** (Open Q#5). Each is marked inline
 > "⚠ blocked on Open Q#5". No story may open against these until Open Q#5 resolves; they must
 > **not** be silently downgraded to manual walkthrough. (This list is exhaustive by construction:
 > *every* Integration AC that inspects rendered output carries the marker — an Integration AC
-> without it is one testable against pure state via a fake bus.)
+> without it is one testable against pure state via a fake bus. AC-UH02, asserting render-tree
+> membership, was added to this list in round 5.)
 
 **Testability requirements for the implementer:**
 - Pure logic (the `anomaliesLogged` tally, `coverage_dominance_ratio` font-size math, tier→message
@@ -614,7 +702,8 @@ proven by AC-UH02's render harness, not here. **BLOCKING (Logic)**
 GIVEN the Dollhouse toggle key is pressed while `HUD_ACTIVE`, WHEN the panel opens, THEN the
 always-visible HUD's elements are removed from the render tree (not merely hidden beneath a
 higher z-index) while `DOLLHOUSE_OPEN` is active — the Dollhouse panel is the sole occupant of the
-view. **BLOCKING (Integration)**
+view. **BLOCKING (Integration) — ⚠ blocked on Open Q#5** (asserts render-tree membership, an
+inspected-DOM check like UH10/UH35/UH50; requires the jsdom harness).
 
 > **Log panel (master GDD's third "tab")**: explicitly out of scope for this GDD (Rule 1) — its
 > only designed content is itself flagged out-of-scope elsewhere. **No AC written; N/A by design.**
@@ -634,15 +723,19 @@ is called that tick; conversely, GIVEN `DOLLHOUSE_OPEN`, WHEN a render tick occu
 pure logic, no render output. **BLOCKING (Logic)**
 
 **AC-UH50 — No DOM mutation on a tick whose view model is unchanged (dirty-check)**
-GIVEN the active panel's `get*ViewModel()` returns a value equal to the previous tick's (per Rule 2's
-dirty-check), WHEN that tick's render runs, THEN no DOM write/reflow occurs for that panel — proven
-by a mutation observer (or a spied DOM-write path) recording zero writes across N consecutive
-unchanged ticks, and ≥1 write on the tick the view model next changes. **BLOCKING (Integration) — ⚠ blocked on Open Q#5**
+GIVEN the active panel's `get*ViewModel()` returns, **on every call, a freshly-constructed object
+with a distinct reference but nested values equal to the previous tick's** (the real pure-getter
+shape per ADR-0006(b)/0007(h) — NOT a reused same-reference object, which would mask the bug this AC
+exists to catch under a naive `===`), WHEN that tick's render runs, THEN no DOM write/reflow occurs
+for that panel — proven by a mutation observer (or a spied DOM-write path) recording zero writes
+across N consecutive unchanged ticks, and ≥1 write on the tick the view model next changes.
+**BLOCKING (Integration) — ⚠ blocked on Open Q#5**
 
 **AC-UH55 — Re-attach forces a write even when the post-re-attach view model is value-identical to the pre-detach cache**
-GIVEN state goes `HUD_ACTIVE` → `DOLLHOUSE_OPEN` → `HUD_ACTIVE`, and `getNodeLedgerViewModel()`'s
-first post-re-attach return value is equal (per Rule 2's value comparison) to the last value cached
-before detach, WHEN the first post-re-attach tick renders, THEN a DOM write occurs for the
+GIVEN state goes `HUD_ACTIVE` → `DOLLHOUSE_OPEN` → `HUD_ACTIVE`, and `getNodeLedgerViewModel()`
+returns a **freshly-constructed, distinct-reference object** whose first post-re-attach value is
+equal (per Rule 2's value comparison) to the last value cached before detach, WHEN the first
+post-re-attach tick renders, THEN a DOM write occurs for the
 always-visible HUD **regardless of the equality result** — the detach interval invalidated the
 cache (Rule 2's forced-write clause) — AND on the following unchanged tick no write occurs (the
 normal dirty-check resumes). Stages the exact scenario Rule 2's re-attach clause exists for, which
@@ -707,15 +800,36 @@ is not applied in `TERMINAL` (ratio effectively 1.0) regardless of the configure
 per Core Rule 4's carve-out protecting Win/Lose's neutral-voice guarantee. **BLOCKING (Logic)**
 
 **AC-UH12 — coverage visually reads as the dominant element at the default ratio**
-GIVEN the co-located widget renders at the default 1.5× ratio, WHEN a lead reviews a screenshot of
-the widget against this checklist, THEN **all** hold: (1) `coverage`'s font size matches AC-UH09's
-computed ratio; (2) `nodesCompleted` carries **no competing** dominance cue, checked as computed
-styles — its `color` and `font-weight` are identical to `coverage`'s, and it carries no additional
-`transform`/scale beyond the base type scale (the size delta itself is already proven
-computationally by AC-UH09); (3) `coverage`
-precedes `nodesCompleted` in reading order (AC-UH10). Passing all three closes `AC-SN31 DEFERRED` as
-a genuinely observed, not merely computed, resolution. Evidence: screenshot + lead sign-off in
+GIVEN the co-located widget renders at the default 1.5× ratio, WHEN a lead reviews the evidence
+against this checklist, THEN **all** hold: (1) `coverage`'s font size matches AC-UH09's computed
+ratio; (2) `nodesCompleted` carries **no competing** dominance cue — its `color`, `font-weight`,
+and `transform`/`scale` are recorded from **`getComputedStyle()`** (devtools inspection or a scripted
+capture), **not inferred from the screenshot**: a raster screenshot cannot distinguish a legitimate
+font-size increase from a `transform: scale()` faking one — the exact ambiguity this item exists to
+rule out — so item (2) MUST cite actual computed-style values, and `nodesCompleted`'s `color`/
+`font-weight` must equal `coverage`'s with no additional `transform`/scale beyond the base type scale
+(the size delta itself is already proven computationally by AC-UH09); (3) `coverage` precedes
+`nodesCompleted` in reading order (AC-UH10). The screenshot supports **only** the perceptual read
+("does `coverage` look dominant"); the computed-style facts come from the recorded values. Passing
+all three closes `AC-SN31 DEFERRED` as a genuinely observed, not merely computed, resolution.
+Evidence: screenshot **+ recorded `getComputedStyle()` values** + lead sign-off in
 `production/qa/evidence/`. **ADVISORY**
+
+**AC-UH59 — coverage_dominance_ratio composes with A-V2 by uniform multiplication (ratio invariant), AND an absolute clamp bounds coverage's size at high A-V2**
+GIVEN `coverage_dominance_ratio` is injected at its safe-range max (1.75×) and an A-V2 user text
+scale is injected at each of 1.0×, 1.5×, and a **large** plausible value (e.g. 3×), WHEN the
+co-located widget's font sizes are computed, THEN:
+**Part 1 (ratio invariance):** for every A-V2 value, `coverage`'s size ÷ `nodesCompleted`'s size
+equals `coverage_dominance_ratio` exactly (`toBeCloseTo`), unchanged by A-V2 — proving A-V2 is
+applied uniformly to both numbers and never as an independent third multiplier on `coverage`'s
+already-dominance-scaled size, so the two 1.5×-class multipliers never compound the *ratio* past
+Rule 4's ceiling.
+**Part 2 (absolute clamp):** at the large A-V2 value where `ratio × A-V2 × base` would exceed the
+widget's absolute grid ceiling, `coverage`'s computed size (or its container) is **clamped to that
+absolute maximum**, not rendered at the raw `1.75 × 3 = 5.25×` product — proving ratio invariance
+alone does not leave absolute size unbounded (per UI Requirements' two-failure-mode contract).
+Both factors and the absolute-max are injectable/mockable config, never a real config file.
+**BLOCKING (Logic)**
 
 ### anomaliesLogged Tally (Rule 5)
 
@@ -839,11 +953,28 @@ output is evaluated for either case, THEN the audio alert tone does NOT fire in 
 Rule 7's freeze takes precedence over the same-tick alert regardless of which event type
 triggered it, per Rule 9's explicit clause. **BLOCKING (Logic)**
 
+**AC-UH57 — At ADJACENT, an error-triggering event displays its message but fires no audio sting (no SEALED involved)**
+GIVEN the resolved proximity tier is `ADJACENT` and NO transition to `SEALED` lands this tick, WHEN
+an error-triggering event (`renderer:anomaly_density` or an escalation-relevant `entity:proximity`
+tier change) arrives and end-of-tick audio is evaluated, THEN the audio alert tone does **not** fire
+(§13 silence-drop, Rule 6/Rule 9) AND the error message still displays. This isolates the
+ADJACENT-suppression clause from AC-UH29's SEALED-suppression — the two are distinct suppression
+paths and AC-UH29 never stages a non-SEALED ADJACENT tick. Pure end-of-tick audio-decision
+assertion via a fake bus; no DOM harness required. **BLOCKING (Logic)**
+
 **AC-UH52 — A sting is suppressed when a prior sting fired within error_sting_min_interval_ms (cross-tick debounce)**
 GIVEN a sting fired on tick T, WHEN a new error-triggering event arrives on a later tick T+k whose
 wall-clock offset from T is **less than** `error_sting_min_interval_ms` (default 200ms), THEN no new
 sting fires for that event, while its visual message still displays (Rule 6); AND GIVEN the offset
-is **≥** `error_sting_min_interval_ms`, THEN the new sting fires normally. `error_sting_min_interval_ms`
+is **≥** `error_sting_min_interval_ms`, THEN the new sting fires normally.
+AND GIVEN **no sting has yet fired this session** (the last-fired timestamp holds its initial
+sentinel) and the injected mock clock reads `0`, WHEN the session's **first** error-triggering event
+arrives, THEN the sting **fires** — proving the sentinel is initialised to a value unconditionally
+`≥ error_sting_min_interval_ms` in the past (`-Infinity`/`null`), never `0`: a `0` initial value
+against a `0`-start mock clock would compute offset `0 < interval` and wrongly suppress the session's
+very first sting (Rule 9 "Cold-start sentinel"). This branch is what distinguishes a correct
+sentinel from `0`; the two prior-fire branches above never exercise it.
+`error_sting_min_interval_ms`
 is an injectable/mockable config parameter (tests inject fixed values within 150–400ms and a mock
 clock via the injected time source Rule 9 names, never a real timer or config file). Proves Rule 9's
 cross-tick debounce, distinct from the same-tick dedup of AC-UH27. **BLOCKING (Logic)**
@@ -855,6 +986,27 @@ during `DOLLHOUSE_OPEN` and no deferred/retroactive tone fires on the transition
 `HUD_ACTIVE`; AND `anomaliesLogged` still increments once per qualifying event, AND the latest
 cached error message renders on the first post-re-attach tick (Rule 2's forced write) — proving
 Rule 10 withholds presentation only, never state. **BLOCKING (Logic)**
+
+**AC-UH58 — Reattach input-lockout: locomotion-resume is withheld for exactly one tick after DOLLHOUSE_OPEN closes (state timing, not a perceptual guarantee)**
+GIVEN state transitions `DOLLHOUSE_OPEN → HUD_ACTIVE` (the player closes the panel) while the cached
+proximity tier is `ADJACENT`, WHEN the first post-re-attach tick is processed, THEN (1) the HUD is in
+its one-tick **reattach-grace** sub-state and does **not** emit the locomotion-resume signal on that
+tick; (2) it emits the resume signal on the **following** tick (grace lasts exactly one tick, not
+longer); AND (3) the forced cached-error-message write (Rule 2 / AC-UH55) occurs on the grace tick —
+so the message-write frame and the movement-suppressed frame are the same frame. Verified via
+the HUD state machine + a spy on the resume-signal emission against a fake bus — pure logic, no DOM
+harness, no playtest. This asserts the **input-lockout / race-condition** guarantee Rule 10 fixes:
+because AC-WL08's Movement Violation needs a `player:position` delta that cannot occur until resume,
+no instant loss can land on the *same frame* the player reattaches. It does **not** assert that the
+single 16.6 ms frame is a human-perceptible reaction budget (Rule 10 — that is an open `/ux-design`
+question). **BLOCKING (Logic)**
+
+> *Any **human-scaled reaction budget** beyond this one-tick engine-race lockout (a multi-frame
+> readable interval or an on-close cue) is a `/ux-design` dollhouse-spec call, tracked at Rule 10's
+> cross-system seam and Open Q#2 — the simultaneous-frame race is settled here; the perceptibility
+> question is not. The
+> enforcement that the player physically cannot translate on the grace tick rides FPS Movement
+> honouring the withheld resume signal (Open Q#9).*
 
 ### States and Transitions
 
@@ -971,10 +1123,21 @@ with the reduced-distortion toggle ON. **ADVISORY**
 GIVEN the Dollhouse toggle interaction and the overall diegetic-UI presentation, WHEN compared
 against `design/ux/interaction-patterns.md`, THEN **each** of these enumerated checkpoints holds —
 **P-DOLLHOUSE:** (1) toggle, not hold; (2) fullscreen-blocking, not a translucent overlay; (3)
-world simulation continues while open; (4) toggle key is rebindable. **P-DIEGETIC:** (5) no
+world *simulation* continues while open — the entity keeps approaching and dwell keeps accruing
+(Rule 10); (4) toggle key is rebindable. **P-DIEGETIC:** (5) no
 external/DOM HUD outside the diegetic surface; (6) critical state carries ≥2 channels per A-S1
 (AC-UH44); (7) coverage/status carry a non-colour channel per A-V1 (AC-UH41). Each numbered item is
 a separate pass/fail line in the walkthrough. Evidence: manual walkthrough doc. **ADVISORY**
+
+> **⚠ Known conformance gap — player *locomotion* during `DOLLHOUSE_OPEN`.** This AC deliberately
+> asserts checkpoint (3) as *world-simulation* continuity only, **not** live player locomotion.
+> `interaction-patterns.md`'s current P-DOLLHOUSE cost line ("lingering can walk you into a loop
+> door or the entity") reads as though the player can *move* while the map is open — the **opposite**
+> of Rule 10's stationary/safe-while-open/trap-on-close model (Open Q#9). Until FPS Movement ratifies
+> the locomotion-suspension requirement (Open Q#9) and `interaction-patterns.md` is updated to match,
+> this GDD does **not** claim conformance to any "walk while open" reading of P-DOLLHOUSE. The two
+> docs are in a coordination conflict, not two ratified designs — flagged for a coordinated
+> pattern-library update, not resolved here.
 
 ### Visual/Audio Requirements — Feel
 
@@ -996,8 +1159,9 @@ sting plays, THEN its character (duration ~100–200ms, low tone, subtle distort
 intensify with tier; AND GIVEN a new error message at `ADJACENT`, WHEN it is pushed, THEN **no sting
 plays** (message displays silently, yielding to §13's silence-drop — Rule 6/Rule 9). Escalation is
 confined to message content and the proximity drone, never the sting. Evidence: lead sign-off.
-**ADVISORY — PROVISIONAL** (sting *character* is the Audio System GDD's to ratify; the flat-vs-escalating
-and ADJACENT-suppression *trigger logic* is UI-owned and additionally covered by BLOCKING AC-UH29.)
+**ADVISORY — PROVISIONAL** (sting *character* is the Audio System GDD's to ratify; the
+ADJACENT-suppression *trigger logic* is UI-owned and covered by BLOCKING **AC-UH57** — not AC-UH29,
+which stages only the SEALED-same-tick suppression, a distinct path.)
 
 ## Coverage Validation
 
@@ -1006,27 +1170,37 @@ and ADJACENT-suppression *trigger logic* is UI-owned and additionally covered by
 | Core Rule 1 (panel structure) | AC-UH01, UH02; Log panel N/A by design |
 | Core Rule 2 (DI view-model consumption + dirty-check + forced write on re-attach) | AC-UH03, UH04, UH50, UH55 |
 | Core Rule 3 (never expose — 4 inherited constraints) | AC-UH05, UH06, UH07, UH08 |
-| Core Rule 4 / Formula (`coverage_dominance_ratio` + out-of-range clamp + terminal carve-out) | AC-UH09, UH10, UH11, UH12, UH49, UH53 |
+| Core Rule 4 / Formula (`coverage_dominance_ratio` + out-of-range clamp + terminal carve-out + A-V2 composition) | AC-UH09, UH10, UH11, UH12, UH49, UH53, UH59 |
 | Formula (`error_sting_min_interval_ms` debounce, Rule 9) | AC-UH52 |
 | Core Rule 5 (anomaliesLogged tally) | AC-UH13, UH14, UH15 |
 | Core Rule 6 (diegetic error escalation + anti-repeat selection + replace-not-stack) | AC-UH16, UH17, UH18, UH19, UH19b, UH56 |
 | Core Rule 7 (session-state gating) | AC-UH20, UH21, UH22 |
 | Core Rule 8 (terminal screen matrix) | AC-UH23, UH24, UH25, UH26 |
-| Core Rule 9 (audio dedup + SEALED precedence + cross-tick debounce) | AC-UH27, UH28, UH29, UH52 |
-| Core Rule 10 (DOLLHOUSE_OPEN blackout — safe-while-open, trap-on-close) | AC-UH54 |
+| Core Rule 9 (audio dedup + SEALED precedence + ADJACENT suppression + cross-tick debounce) | AC-UH27, UH28, UH29, UH54, UH57, UH52 |
+| Core Rule 10 (DOLLHOUSE_OPEN blackout — safe-while-open, trap-on-close + reattach input-lockout) | AC-UH54, UH58 |
 | State table: HUD_ACTIVE / DOLLHOUSE_OPEN / TERMINAL (+ same-tick toggle/SEALED race) | AC-UH30, UH31, UH32, UH33, UH51 |
 | Edge Cases (all 7) | AC-UH34, UH35, UH36, UH37, UH38, UH39, UH40 |
-| UI Requirements — inherited accessibility/interaction patterns | AC-UH41, UH42, UH43, UH44, UH45 |
+| UI Requirements — inherited accessibility/interaction patterns (incl. A-V2 text-scale composition) | AC-UH41, UH42, UH43, UH44, UH45, UH59 |
 | Visual/Audio Requirements — feel | AC-UH46, UH47, UH48 |
 
 No Core Rule, the Formula/tuning knob, the state table, or any Edge Case is left without a
-corresponding criterion. The one exception (the Log panel, Rule 1) is explicitly out of scope per
-this GDD's own text, not a gap.
+corresponding criterion, with **two disclosed exceptions**: (1) the Log panel (Rule 1) is explicitly
+out of scope per this GDD's own text; (2) Rule 2's **first-tick cold-start sentinel** is a stated
+contract, not a test-covered one — AC-UH50's N-consecutive-unchanged-ticks setup begins *after* the
+first forced write and never exercises the cold start (Rule 2's own note). Unlike Rule 9's analogous
+sting cold-start sentinel — which *is* AC-covered by AC-UH52's zero-prior-fires branch — the Rule 2
+dirty-check cold start is deliberately left as a contract-only exception, not a gap. Neither exception
+is a missing criterion for an in-scope, test-reachable behaviour.
 
-**Tag totals**: 33 BLOCKING (Logic) + 16 BLOCKING (Integration) + 8 ADVISORY = **57 criteria**
-(AC-UH47/UH48 are ADVISORY — PROVISIONAL, to be ratified by the Audio System GDD; fifteen
-Integration ACs — UH05–08, UH10, UH15, UH22–26, UH35, UH42, UH50, UH55 — are ⚠ blocked on Open Q#5
-until the DOM test harness is approved).
+**Tag totals**: 36 BLOCKING (Logic) + 16 BLOCKING (Integration) + 8 ADVISORY = **60 criteria**
+(AC-UH47/UH48 are ADVISORY — PROVISIONAL, to be ratified by the Audio System GDD; sixteen
+Integration ACs — UH02, UH05–08, UH10, UH15, UH22–26, UH35, UH42, UH50, UH55 — are ⚠ blocked on
+Open Q#5 until the DOM test harness is approved). New in round 5: BLOCKING **AC-UH57** (ADJACENT
+audio-suppression in isolation). New in round 6: BLOCKING **AC-UH59** (`coverage_dominance_ratio` ×
+A-V2 text-scale composition). Changed in round 6: **AC-UH58** upgraded ADVISORY → BLOCKING (Logic)
+— reattach **input-lockout** is now a state-machine timing assertion (one-tick reattach-grace), not a
+`/ux-design` placeholder; it asserts the engine-race guarantee only, not a human-perceptible reaction
+budget (Rule 10, reworded round 7).
 
 ## Open Questions
 
@@ -1091,3 +1265,24 @@ until the DOM test harness is approved).
    analysis changes materially (Movement Violation becomes possible mid-blackout) and Rule 10 must
    be re-reviewed. Flag also to the future `design/ux/dollhouse.md` spec (whether WASD becomes
    map-pan or goes dead is its call, within "player does not translate" as the fixed constraint).
+   ⚠ **Existing-doc conflict (round 5):** `design/ux/interaction-patterns.md`'s P-DOLLHOUSE cost
+   line ("lingering can walk you into a loop door or the entity") currently describes the *opposite*
+   (live-locomotion) model. This is not merely an unratified requirement — it is a **standing
+   contradiction with an already-authored pattern-library doc**. Resolving Open Q#9 MUST include a
+   coordinated update to `interaction-patterns.md` so the two documents agree; AC-UH45 has been
+   scoped to not claim conformance to the contested "walk while open" reading until then.
+   ⚠ **Round-6 addition — the FPS Movement ask now includes reattach-grace release timing.** Rule 10's
+   reattach **input-lockout** (AC-UH58) pins locomotion-*resume* to **one tick after** the
+   `DOLLHOUSE_OPEN → HUD_ACTIVE` transition, not simultaneous with it — closing the *same-frame* death
+   race (not a human-scaled reaction budget; see Rule 10). FPS Movement's ratification of Open Q#9 must therefore cover
+   not only *suspension while open* but *delayed resume on close* (honour the resume signal UI/HUD
+   withholds for exactly the grace tick). UI/HUD owns the grace-tick state + resume-signal timing
+   (testable here, AC-UH58); FPS Movement owns obeying it. This is a one-tick extension of the same
+   suspension contract, not a new mechanic.
+   ⚠ **Also unresolved (round 6, ux-designer):** `interaction-patterns.md`'s *meta-pattern*
+   "Consistency Rule 2" ("world never pauses for a menu — dollhouse-open… keep the sim live") asserts
+   the live-locomotion model at a **broader** level than the P-DOLLHOUSE bullet alone — the
+   coordinated pattern-library update must reconcile the meta-pattern too, not just the single bullet.
+   Until then, AC-UH45 checkpoint (3) is verifiable only against Entity System's internal dwell state
+   (a fake-bus unit test), **not** a UI walkthrough (Rule 10 renders zero UI signal of the continuing
+   simulation) — its evidence type should be reclassified when Open Q#9 resolves.

@@ -6,6 +6,64 @@ any machine.
 
 ---
 
+## 2026-07-15 (round 7) — UI/HUD independent re-review: 4 blockers fixed; Approved now gated on producer citation-hook, not doc content
+
+**What got done (this session):** ran `/design-review design/gdd/ui-hud.md` (full mode) as the
+round-7 **independent** re-review. Same 7-agent panel as rounds 3–6 (game-designer, systems-designer,
+ux-designer, ui-programmer, qa-lead, audio-director → creative-director synthesis).
+
+**Verdict: NEEDS REVISION → revised same session.** Round 6's 4 blockers held, but the
+citation-integrity defect class recurred a **5th consecutive round** — two new instances slipped
+through round 6's *dedicated* citation pass. qa-lead independently verified the AC count (60: 36
+Logic + 16 Integration + 8 ADVISORY) and the 16-item Open-Q#5 blocked list — both exact.
+
+**4 blockers found and fixed:**
+1. **Line 195 citation defect** — "AC-UH16–19 test pool membership" miscites AC-UH19 (which tests
+   tier-independent anomaly-density push, NOT pool membership; only UH16–18 test membership)
+   [ui-programmer, review-lead-verified]. Fixed: repointed.
+2. **Rule 2 first-tick cold-start = undisclosed 2nd exhaustiveness exception** — no AC covers the
+   sentinel contract, yet the "exhaustive by construction" summary named only the Log panel; Rule 9's
+   analogous sentinel *did* get an AC (UH52 zero-prior-fires) the same round [qa-lead]. Fixed:
+   summary now names both disclosed exceptions.
+3. **AC-UH59's "no grid break at any A-V2" is false** — it proves *ratio* invariance (trivial), but
+   Rule 4's ceiling is *absolute* size; A-V2 is a floor-only spec (≥1.5×, no ceiling), so in-spec
+   A-V2=3× → coverage at 5.25× base, never grid-validated [systems-designer]. Fixed: separated
+   ratio-break from absolute-break; added an absolute font-size/container clamp (this-GDD-authorable);
+   routed an A-V2 ceiling to `accessibility-requirements.md`; AC-UH59 extended to 2 parts.
+4. **Rule 10 "readable frame / reaction-fairness floor / telegraphed" overclaims** a perceptual
+   guarantee 16.6ms can't deliver, contradicting §B's "only in hindsight" anchor [game-designer +
+   ux-designer, converged]. Fixed: reworded throughout to "input-lockout / race-condition guarantee"
+   — mechanical claim (no Movement Violation on the reattach frame) kept; perceptibility reopened for
+   /ux-design. AC-UH58 reworded (tag unchanged).
+
+Secondary: Coverage Validation Rule 9 row now credits AC-UH54.
+
+**AC count: 60 → 60** (no new AC — AC-UH59 extended in place; AC-UH58 reworded).
+
+**The decisive finding (creative-director):** five consecutive rounds with the citation-integrity
+class live, including two instances through round 6's *dedicated* citation pass, is a conclusive
+controlled experiment — **manual review cannot close this class.** Approved must NOT be granted, and
+**no round-8 manual citation pass** should be run, until the **producer** builds a mechanical
+citation-check enforcement hook (routed since round 3). The blocker to closure is no longer in the
+document — it's the absent tooling.
+
+**Still pending outside owners:** producer (citation-hook + Open Q#5 jsdom/harness decision), FPS
+Movement (Open Q#9 suspension + delayed-resume + interaction-patterns.md meta-pattern reconciliation),
+Audio GDD #6 (escalating-drone commitment underpinning the flat-sting strategy).
+
+**Recommended NOT applied (deferred):** commit a "shape" channel to ≥1 alert (AC-UH44 uses identical
+text+position everywhere); tag AC-UH52 range PROVISIONAL; UH42/UH46 blocking-split inconsistency;
+Infinity boundary in AC-UH49.
+
+**All 9/9 MVP systems remain Designed.** This session was review, not new design content.
+
+**NEXT:** UI/HUD is doc-complete on the authorable side. The real gate is the producer citation-hook
+— that should be built before any Approved verdict or `/gate-check pre-production` re-attempt. The
+other 5 MVP GDDs (Point Cloud Renderer, FPS Movement, Scan Mechanic, Entity System, Win/Lose) still
+await their own independent re-reviews.
+
+---
+
 ## 2026-07-12 (round 4) — UI/HUD independent re-review: 3 blockers fixed, Rule 10 rewritten
 
 **What got done (this session):** ran `/design-review design/gdd/ui-hud.md` (full mode) as the

@@ -1,20 +1,29 @@
 # Active Session State
 
-**Task:** UI/HUD (#12) review — **round 4 independent re-review done (2026-07-12), NEEDS REVISION →
-revised same session.** 3 blockers found and fixed (Rule 2 dirty-check comparator too shallow for
-Scan Node's real VM shape; Rule 2's forced-write-on-reattach cited an AC that never staged the
-scenario; Core Rule 10's "total awareness trade" was mechanically a free safe-harbor — user
-re-decided to "safe-while-open, trap-on-close," opening new **Open Q#9** on FPS Movement). AC count
-55→57. `systems-index.md` status: UI/HUD → **In Review**. Full detail in
-`design/gdd/reviews/ui-hud-review-log.md` (round-4 entry, top) and `production/worklog.md` (top
-entry). Obsidian wiki (`LS_obsidian_context/`) ingested to match — 73 pages, see its own
-`wiki/log.md` top entry.
+**Task:** UI/HUD (#12) review — **round 7 independent re-review done (2026-07-15), NEEDS REVISION →
+revised same session.** 4 blockers found and fixed: (1) line-195 citation defect (AC-UH16–19 →
+AC-UH16–18 for pool membership; UH19 tests tier-independence); (2) Rule 2 first-tick cold-start was
+an undisclosed 2nd exhaustiveness exception — summary now names both; (3) AC-UH59's "no grid break at
+any A-V2" was false (proved ratio invariance, not absolute size; A-V2 is floor-only, no ceiling) —
+added an absolute font-size/container clamp + routed an A-V2 ceiling to accessibility-requirements.md
++ AC-UH59 extended to 2 parts; (4) Rule 10 "readable frame / reaction-fairness floor" overclaimed a
+perceptual guarantee 16.6ms can't deliver — reworded throughout to "input-lockout / race-condition
+guarantee" (mechanical claim kept, perceptibility reopened for /ux-design). AC count **60→60** (no
+new AC). Secondary: Coverage Validation Rule 9 row now credits AC-UH54. `systems-index.md` status:
+UI/HUD remains **In Review**, Approved gated on producer citation-hook. Full detail in
+`design/gdd/reviews/ui-hud-review-log.md` (round-7 entry, top) and `production/worklog.md` (top).
 
-**Next:** round-5 independent re-review in a **fresh session** (`/clear` →
-`/design-review design/gdd/ui-hud.md`) to confirm the 3 blockers are closed. FPS Movement's owner
-should ratify Open Q#9 (small amendment) — can happen in the same session. Then continue
-`/design-review` for the other 5 unreviewed MVP GDDs (Point Cloud Renderer, FPS Movement, Scan
-Mechanic, Entity System, Win/Lose & Ending), then re-run `/gate-check pre-production`.
+**Decisive finding (creative-director):** 5 consecutive rounds with the citation-integrity class live
+— including 2 instances through round 6's *dedicated* citation pass — proves manual review cannot
+close this class. **No round-8 manual citation pass; do not mark Approved** until the **producer**
+builds a mechanical citation-check enforcement hook (routed since round 3).
+
+**Next:** The doc-side is complete on the authorable side — the real gate is the producer citation-hook.
+Outside owners still pending: producer (citation-hook + Open Q#5 jsdom/harness), FPS Movement (Open Q#9
+suspension + delayed-resume + interaction-patterns.md meta-pattern reconciliation), Audio GDD #6
+(escalating-drone commitment). The other 5 MVP GDDs (Point Cloud Renderer, FPS Movement, Scan
+Mechanic, Entity System, Win/Lose) still await their own independent re-reviews. Then re-run
+`/gate-check pre-production`.
 
 **All 9/9 MVP systems remain Designed** (since 2026-07-07/07-10) — this session's work was review,
 not new design content.

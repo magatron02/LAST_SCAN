@@ -41,7 +41,7 @@ UI, no jump scares, horror from the familiar made wrong, a found-footage cycle.
 | 9 | Entity System | Gameplay | MVP | Designed | design/gdd/entity-system.md | Point Cloud, Floor Plan, Orchestrator |
 | 10 | Win/Lose & Ending | Gameplay | MVP | Designed | design/gdd/win-lose-ending.md | Scan Node, Entity System, Orchestrator |
 | 11 | Cycle / Meta Layer | Meta | Alpha | Not Started | — | Persistence, Win/Lose, Orchestrator |
-| 12 | UI / HUD | UI | MVP | In Review (round-4 revised 2026-07-12; round-5 independent re-review pending) | design/gdd/ui-hud.md | Scan Mechanic, Entity, Scan Node, Orchestrator |
+| 12 | UI / HUD | UI | MVP | In Review (round-7 independent re-review 2026-07-15, 4 blockers resolved, AC 60→60; **Approved gated on producer mechanical citation-check hook** per CD — 5th consecutive round the citation class slipped a manual pass; no round-8 manual pass) | design/gdd/ui-hud.md | Scan Mechanic, Entity, Scan Node, Orchestrator |
 | 13 | Found-Footage Layer | UI | Vertical Slice | Not Started | — | UI / HUD, Orchestrator, Entity System |
 
 ---
