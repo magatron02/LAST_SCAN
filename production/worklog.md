@@ -6,6 +6,75 @@ any machine.
 
 ---
 
+## 2026-07-17 (round 3) — Point Cloud Renderer independent re-review: 11 blockers fixed + test-tier doctrine amended; fresh round-4 re-review required
+
+**What got done (this session):** ran `/design-review design/gdd/point-cloud-renderer.md` (full mode)
+as the round-3 **independent** re-review. 5-agent adversarial panel (systems-designer, game-designer,
+engine-programmer, performance-analyst, qa-lead) → creative-director synthesis.
+
+**Verdict: NEEDS REVISION → all 11 blockers revised same session.** CD validated every round-2 fix
+(no regression) but named the driving meta-pattern: **each round's fix breeds the next round's
+blocker** (round-2's sampler rewrite + GPU-jitter move are exactly what produced round-3's top
+blockers). Headline: **systems-designer AND game-designer INDEPENDENTLY found the Type B
+detectability gap** — round-2 scoped ρ_obs to "BASE points," but ENTITY_SPIKE is a separate additive
+layer (Core Rule 2), so a Type B spike never changes ρ_obs → σ≈0 → no event ever fires (same class as
+round-1's undetectable void, now for Type B).
+
+**11 blockers found and fixed:**
+1. Type B undetectable → ρ_obs samples **BASE+ENTITY_SPIKE** (ENTITY_GHOST excluded; Type C is
+   visual-only, fires no anomaly event) [user decision] + AC-D02.
+2. ENTITY_GHOST/SCAN_MATERIALIZING render fully opaque without `transparent:true` → normative + AC-C04/
+   C07/Visual-Audio [engine-programmer].
+3. Signed σ payload = type oracle (neg⟺A, pos⟺B) → emit **magnitude |σ|** only [game-designer].
+4. PROXIMITY_CORRUPTED "random colour flickering" fully unspecified → respec'd as **Formula 5**
+   same-green **brightness** flicker (no hue shift, preserves uniform-green commitment) + 2 knobs +
+   AC-D08 [user decision] [game-designer].
+5. Div-zero guard regression: k_noise/A_tile (F2) + h/T (F4, no guard at all) → guards + AC-D06
+   expanded + new AC-D07 [systems-designer].
+6. AC-D03/E03 asserted non-deterministic per-point displacement → rewritten to assert deterministic
+   `uJitter` uniform [qa-lead].
+7. onBeforeCompile cache-key collision (BASE/SPIKE/GHOST identical PointsMaterials) → `customProgram
+   CacheKey()` normative + AC-D03 clause [engine-programmer].
+8. Type A occluder spawn/despawn lifecycle + static-scale-1.0 fallback untested → AC-ST04 + AC-ST05
+   [qa-lead + game-designer].
+9. "active detection tiles" undefined (cost claim unverifiable) → frustum ∩ `anomaly_sample_radius`
+   (new knob 12m) [performance-analyst].
+10. Q6 merge-all-buffer vs F3 jitter contradict (one bounding sphere → jitter/flicker runs over all
+    1.5M pts every frame) → Open Q6 amended with 2 options, deferred to ADR [performance-analyst].
+11. AC-P01 (density-budget thesis) had no ADR-blocking prototype gate → new **Open Q7** min-spec perf
+    prototype, blocks ADR like Q1 [performance-analyst].
+
+**User decisions:** (a) revise now → **fresh round-4 re-review** (not self-approve); (b) **amend
+test-tier doctrine** (CD rec) — carve a WebGL-integration tier so AC-C08's numeric pixel-count stays
+BLOCKING; (c) Type C excluded from density sampler (visual-only); (d) colour flicker respec'd as
+same-green brightness, not cut.
+
+**CD disagreement rulings:** game-designer's "three tells distinguishable by shape" DOWNGRADED to
+prose fix (fantasy = no colour/label taxonomy, not perceptual identity; shape is Entity System's
+concern); qa-lead's "demote AC-C08" OVERRULED → keep BLOCKING + amend doctrine.
+
+**Cross-file changes:**
+- `.claude/docs/technical-preferences.md` — new **WebGL-integration test tier** (Testing section).
+- `.claude/docs/coding-standards.md` — "What NOT to Automate" carve-out: numeric buffer/render-target
+  *counts* ≠ visual fidelity; allowed headless, may be BLOCKING, lives in `tests/integration/`.
+- Prose: fantasy line → "no colour/label taxonomy"; Open Q5 growth relabelled "growing-void
+  escalation" (distinct from §B static-recognition Anchor). Stale **"Amber" Type B → green**.
+- Folded recommendeds: abort `current α→0`, `entity:transform` scale clamp [1.0,1.75), occluder's own
+  `depthTest` asserted, materializing overlay added to AC-C07, F3 injection point (`transformed`).
+- AC count **24 → 28** (C:8 D:8 E:6 ST:5 P:1).
+
+**Current state:** point-cloud-renderer.md Status = In Design, round-3 revised, **fresh round-4
+re-review pending — do NOT self-approve** (CD process condition; the same-session loop bred rounds 2
+& 3's blockers). Full detail in `design/gdd/reviews/point-cloud-renderer-review-log.md` (round-3
+entry, top). No `systems-index.md` status change (was already Designed).
+
+**NEXT:** `/clear`, then re-run `/design-review design/gdd/point-cloud-renderer.md` in a **fresh
+session** (round 4). Two Open Questions now gate the Point Cloud ADR: Q1 (occluder depth-cull
+prototype) and **Q7 (min-spec perf prototype)** — plus the WebGL-integration harness must exist before
+AC-C08 can run. Remaining MVP GDDs still awaiting independent re-review: FPS Movement, Scan Mechanic,
+Entity System, Win/Lose. Then re-run `/gate-check pre-production`. **All 9/9 MVP systems remain
+Designed.**
+
 ## 2026-07-15 (round 7) — UI/HUD independent re-review: 4 blockers fixed; Approved now gated on producer citation-hook, not doc content
 
 **What got done (this session):** ran `/design-review design/gdd/ui-hud.md` (full mode) as the

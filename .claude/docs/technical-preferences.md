@@ -32,6 +32,7 @@
 
 - **Target Framerate**: 60 FPS desktop
 - **Frame Budget**: 16.6 ms
+- **Minimum-Spec Baseline**: 2020-era integrated GPU (Intel Iris Xe / AMD Vega 8 class), 8 GB RAM, 1080p — the hardware all performance ACs (e.g. Point Cloud Renderer AC-P01) are measured against
 - **Draw Calls**: Keep low — point cloud in as few `THREE.Points` objects as possible; merge geometry
 - **Memory Ceiling**: Point cloud ≤ ~1–2M points per scene
 
@@ -40,6 +41,15 @@
 - **Framework**: Vitest (unit, logic-only — state machine, proximity math, scan validation)
 - **Minimum Coverage**: Logic systems (scanner state machine, entity proximity, win/lose) must have unit tests
 - **Required Tests**: Scan state transitions, entity proximity tiers, win/lose condition evaluation
+- **WebGL-integration test tier** (added 2026-07-17): a distinct tier, separate from logic-only
+  unit tests, for **numeric buffer/render-target assertions** that require a real WebGL2 context —
+  e.g. rendering a frame to an offscreen `WebGLRenderTarget` and asserting a *count* of pixels via
+  `readRenderTargetPixels`. This is **not** visual-fidelity testing (which stays prohibited per
+  coding-standards' "What NOT to Automate"): the assertion is a scalar count or numeric comparison,
+  never a subjective appearance judgment. Lives in `tests/integration/` behind a headless-WebGL
+  harness (headless-gl or Playwright + real-GPU CI). First consumer: Point Cloud Renderer AC-C08
+  (Type A occluder functional-cull). **The harness must be stood up before the first ADR that
+  relies on this tier is marked Accepted.**
 
 ## Forbidden Patterns
 

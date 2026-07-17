@@ -52,8 +52,17 @@ All stories must have appropriate test evidence before they can be marked Done:
 
 - Visual fidelity (shader output, VFX appearance, animation curves)
 - "Feel" qualities (input responsiveness, perceived weight, timing)
-- Platform-specific rendering (test on target hardware, not headlessly)
+- Platform-specific rendering **appearance** (test *fidelity* on target hardware, not headlessly)
 - Full gameplay sessions (covered by playtesting, not automation)
+
+**Carve-out — numeric buffer/render-target assertions are NOT "visual fidelity" (added 2026-07-17):**
+The rule above targets *subjective appearance* judgments. A test that renders a frame to an offscreen
+`WebGLRenderTarget` and asserts a **count** or **numeric comparison** of pixels (e.g. "fewer
+BASE-coloured pixels inside the silhouette with the occluder than without") is a *functional* property,
+not a fidelity judgment, and IS allowed to run headlessly. Such tests belong to the **WebGL-integration
+test tier** (see `technical-preferences.md` → Testing), live in `tests/integration/`, and may be
+BLOCKING. The distinction is *how the assertion is decided*: a scalar count/comparison ⇒ automatable;
+a "does this look right" ⇒ not automatable (screenshot + lead sign-off, ADVISORY).
 
 ## CI/CD Rules
 

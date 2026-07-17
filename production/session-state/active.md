@@ -1,5 +1,36 @@
 # Active Session State
 
+**Task:** Point Cloud Renderer (#?) review — **round 3 independent re-review done (2026-07-17), NEEDS
+REVISION → all 11 blockers revised same session.** 5-agent panel (systems-designer, game-designer,
+engine-programmer, performance-analyst, qa-lead) → creative-director synthesis. Headline: systems- AND
+game-designer INDEPENDENTLY found the Type B detectability gap (round-2 sampler scoped to BASE-only →
+ENTITY_SPIKE is a separate layer → Type B never fires). Fixes: (1) ρ_obs samples BASE+ENTITY_SPIKE,
+Type C excluded [user decision]; (2) transparent:true for ghost/materializing; (3) σ payload emits
+magnitude |σ| only (signed = type oracle); (4) "colour flickering" → Formula 5 same-green brightness
+flicker [user decision]; (5) k_noise/A_tile + h/T div-zero guards (AC-D06 expanded, new AC-D07); (6)
+AC-D03/E03 assert deterministic uJitter uniform; (7) customProgramCacheKey() for onBeforeCompile; (8)
+AC-ST04/ST05 (Type A lifecycle + scale-1.0 fallback); (9) "active tiles" = frustum ∩
+anomaly_sample_radius (12m knob); (10) Open Q6 merge-vs-jitter tension → ADR; (11) new Open Q7 min-spec
+perf prototype (blocks ADR like Q1). Prose: fantasy → "no colour/label taxonomy"; Q5 relabelled
+"growing-void escalation"; stale "Amber" Type B → green. **Doctrine amended** [user decision]:
+WebGL-integration test tier in technical-preferences.md + coding-standards.md carve-out; AC-C08 keeps
+BLOCKING. AC count 24→28. Full detail in `design/gdd/reviews/point-cloud-renderer-review-log.md`
+(round-3 entry, top) + `production/worklog.md` (top).
+
+**CD process condition:** the same-session fix-and-approve loop is what bred rounds 2 & 3's blockers.
+**Fresh-context round-4 re-review REQUIRED — do NOT self-approve.** `systems-index.md` unchanged (Point
+Cloud Renderer already Designed).
+
+**Next:** `/clear`, then re-run `/design-review design/gdd/point-cloud-renderer.md` fresh (round 4).
+Point Cloud ADR now gated on TWO prototypes: Q1 (occluder depth-cull) + Q7 (min-spec perf) + the
+WebGL-integration harness (for AC-C08). Remaining MVP GDDs awaiting independent re-review: FPS
+Movement, Scan Mechanic, Entity System, Win/Lose. Then `/gate-check pre-production`. All 9/9 MVP
+systems remain Designed.
+
+---
+
+## Superseded — UI/HUD (#12) review (2026-07-15)
+
 **Task:** UI/HUD (#12) review — **round 7 independent re-review done (2026-07-15), NEEDS REVISION →
 revised same session.** 4 blockers found and fixed: (1) line-195 citation defect (AC-UH16–19 →
 AC-UH16–18 for pool membership; UH19 tests tier-independence); (2) Rule 2 first-tick cold-start was
