@@ -1,5 +1,79 @@
 # Active Session State
 
+<!-- STATUS -->
+Epic: Point Cloud Renderer
+Feature: Design review + ADR-blocking prototypes
+Task: Run q7-perf and q1-occluder; then rebuild Formula 2
+<!-- /STATUS -->
+
+**Task:** Point Cloud Renderer (#1) — **round-7 fresh-context re-review done (2026-07-26):
+MAJOR REVISION NEEDED. NO fixes applied — deliberate.** 5 specialists + creative-director.
+8 blockers + 8 recommended, **+1 found post-review** = 9.
+
+**Why MAJOR (by process, not vision):** **5 of the 8 blockers were introduced by round-6's own
+same-session fixes** (`f_cov`, Formula 1b's guard, the narrowed cost bound, AC-P01 window (c),
+`toneMapped=false`) — 62% self-inflicted; 6 of 9 counting the addendum. Rounds 4–5 deferred to fresh
+sessions; round 6 patched in-session and produced this crop. **CD ruling: no further same-session
+fixing on this document, no exceptions for "cheap" items.**
+
+**Root cause CD named:** **Formula 2 has been the primary blocker in 6 of 7 rounds.** Every round
+patches its baseline; every patch adds a term whose data source doesn't exist yet (visible-set → layer
+set → tile activity → scan coverage). `f_cov` is the 4th iteration of one failure. Prescription:
+rebuild Formula 2 **once** from real data sources (gate on binary owning-node completion; delete the
+continuous-coverage fiction), don't patch a 5th time.
+
+**Blockers:** (1) `f_cov` has no data source — `scan:complete` is a node-level one-shot carrying a
+node-*count* fraction, nothing computes a per-tile *spatial* fraction; AC-D02b's `f_cov=0.5` isn't
+constructible [3-way convergence]. (2) Formula 1b guard overshoots above ~89% of ceiling (needs stride
+≥14, knob caps at 8). (3) Formula 2's cost bound states no tuning assumption — two recomputations
+disagreed (~2.12M vs ~764k); CD ruled *the disagreement is the finding*. (4) `toneMapped=false` on BASE
+only → splits the uniform green under any tonemapping. (5) AC-P01 window (c) backwards + unbarred —
+GHOST is excluded from ρ_obs, so **Type B is the only entity state adding CPU sampling work**, and it's
+the one window exempt from the 33 ms guard. (6) `ghost_decimation_stride` spawn-time-only; ENTITY_GHOST
+rebuild-on-`floorplan:update` undefined. (7) `flicker_rate` max 6.37 Hz **violates accessibility A-V3's
+≤3 flashes/s ceiling** (verified, `design/ux/accessibility-requirements.md:19`). (8) Level Design
+dependency undeclared — absent from Dependencies *and* systems-index.
+
+**+1 ADDENDUM (found after the verdict, while building the prototype — verify this yourself):**
+Formula 5 pins `#include <output_fragment>`, **which does not exist in r171** (renamed
+`opaque_fragment` in r152). Confirmed against installed `three@0.171.0`. A literal `.replace()` never
+matches → **flicker silently never renders while AC-D08 still passes** (it checks only the CPU-side
+`uFlickerAmp` uniform). Ordering reasoning is correct; only the name is wrong. **First finding in 7
+rounds produced by checking the pinned engine instead of arguing** — the case for prototyping.
+
+**CD overturned 2 specialist findings** (don't re-raise blindly): game-designer's confirmation-dwell
+blocker → recommended (the scenario is unreachable — tiles are only sampled if they intersect the
+frustum, so the void must be on-screen 2 consecutive passes; verified against Formula 2's own clause).
+engine-programmer's Q#6 spatial-index blocker → recommended-mandatory (correct that option (a) silently
+needs a tile→point index, but Q#6 is already a deferred ADR question). **Occluder recipe CLEARED**
+under fresh adversarial testing — the most-patched technical claim held. **AC count verified at 33.**
+
+**Built this session (NEITHER RUN — Chrome extension not connected; no WebGL harness exists yet):**
+- `prototypes/q7-perf/` — merged 1.5M-pt BASE (`frustumCulled=false` = Q#6 option (a) worst case),
+  jitter+flicker in one `onBeforeCompile`, occluder, GHOST duplicate, SPIKE at 3,240 pts, **Formula 2
+  sampling live at worst-case tuning** (`A_tile` 0.5, radius 15m). 4 scenarios × 300 frames incl. a
+  **4th the GDD lacks: Type B + CORRUPTED** (tests blocker 5). Reports tile-index cost + buffer bytes.
+- `prototypes/q1-occluder/` — numeric offscreen `readRenderTargetPixels` verification, doubles as
+  **AC-C08 evidence**. T1 cull / T2 invisibility / T3 360°+elevation sweep / T4 near-plane.
+- Run: `npx vite --port 5178 --strictPort` → `/prototypes/q7-perf/`, `/prototypes/q1-occluder/`.
+- **This machine is NOT min-spec** (Iris Xe / Vega 8, 8 GB, 1080p) — a pass here does not clear AC-P01.
+
+**`design/gdd/point-cloud-renderer.md` is deliberately UNTOUCHED.**
+
+**Next (CD's 3 tracks, in order):** (1) run both prototypes, ideally on min-spec; (2) **one dedicated
+Formula 2 session**, fresh context, nothing else in it; (3) **one consolidated mechanical pass**, fresh
+context, for blockers 2/4/5/6/7/8 + addendum + the 8 recommended — per the ruling, *not* in the session
+that reviews them. Then round 8 once, with numbers. **CD exit criteria:** blockers (a) <5, (b) none
+self-inflicted by tracks 2–3, (c) none in Formula 2. If Formula 2 blocks again, the honest conclusion
+is that CPU-side density anomaly detection is the wrong mechanism for this tell.
+
+**Other MVP GDDs awaiting independent re-review:** Entity System (round-4 NEEDS REVISION, 2026-07-25),
+FPS Movement, Scan Mechanic, Win/Lose, UI/HUD. Then `/gate-check pre-production`.
+
+---
+
+## Superseded — Entity System review (2026-07-25)
+
 **Task:** Entity System (#9) review — **round 3 independent re-review done (2026-07-25), NEEDS
 REVISION → all 4 blockers + 6 recommended revised same session.** 7-agent panel (game-designer,
 systems-designer, ai-programmer, qa-lead, audio-director, **ux-designer — first-ever UX pass on this

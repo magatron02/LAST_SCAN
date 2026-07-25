@@ -30,7 +30,7 @@ UI, no jump scares, horror from the familiar made wrong, a found-footage cycle.
 
 | # | System Name | Category | Priority | Status | Design Doc | Depends On |
 |---|-------------|----------|----------|--------|------------|------------|
-| 1 | Point Cloud Renderer | Core | MVP | In Review (round-5 fresh-context re-review 2026-07-18 **MAJOR REVISION NEEDED** — verdict escalated from round-4's NEEDS REVISION; all 4 round-4 blockers confirmed still open + 3 new/broadened + 2 elevated = 7 blockers across THREE systems needing real redesign, not patches: Formula 2 model redesign, Formula 3/5 cross-system contract, ENTITY_SPIKE density model authored from zero. MAJOR-by-scope not by-vision. Deferred to dedicated fresh sessions per the standing don't-self-approve condition — see review log) | design/gdd/point-cloud-renderer.md | — |
+| 1 | Point Cloud Renderer | Core | MVP | In Review (round-7 fresh-context re-review 2026-07-26 **MAJOR REVISION NEEDED** — escalated from round-6's NEEDS REVISION, **MAJOR-by-process not by vision**: 8 blockers + 8 recommended, of which **5 blockers were introduced by round-6's own same-session fixes** (62% self-inflicted). Blockers: Formula 2's `f_cov` has no data source (`scan:complete` is a node-level one-shot, nothing computes a per-tile spatial fraction — 3-way specialist convergence); Formula 1b's budget guard overshoots above ~89% of ceiling (stride caps at 8, needs ≥14); Formula 2's cost bound states no tuning assumption (two recomputations disagreed, ~764k vs ~2.12M); `toneMapped=false` set on BASE only, splitting the uniform green under any tonemapping; AC-P01 window (c) has no numeric bar and its "Type B passes trivially" assumption is backwards (Type B is the ONLY state adding CPU sampling work — Ghost is excluded from ρ_obs); `ghost_decimation_stride` is spawn-time-only + ENTITY_GHOST's rebuild-on-`floorplan:update` undefined; `flicker_rate` max 6.37 Hz violates accessibility A-V3's ≤3 flashes/s ceiling; Level Design dependency undeclared. **Formula 2 has been the primary blocker in 6 of 7 rounds** — CD ruled it must be rebuilt once from its data sources, not patched a fifth time, and ruled **no further same-session fixing on this document**. Occluder recipe (the most-patched technical claim) CLEARED under fresh adversarial testing; AC count verified accurate at 33. **No fixes applied — user decision: GO PROTOTYPE** (Open Q#1 + Q#7, both still unrun after 7 rounds, and Q#7's numbers settle 5 of the disputed items). See review log) | design/gdd/point-cloud-renderer.md | — |
 | 2 | FPS Movement | Core | MVP | Designed | design/gdd/fps-movement.md | — |
 | 3 | Floor Plan System | Gameplay | MVP | Approved (round 4 independent re-review, 2026-06-30) | design/gdd/floor-plan-system.md | Point Cloud Renderer |
 | 4 | Scan Node System | Gameplay | MVP | Approved (round 4 independent re-review, 2026-07-01) | design/gdd/scan-node-system.md | Floor Plan System |
@@ -38,7 +38,7 @@ UI, no jump scares, horror from the familiar made wrong, a found-footage cycle.
 | 6 | Audio System | Audio | Vertical Slice | Not Started | — | Entity System |
 | 7 | Session/Game State Orchestrator (inferred) | Core | MVP | Approved (round-4 independent re-review, 2026-07-02) | design/gdd/orchestrator.md | Point Cloud, FPS Movement, Scan Node |
 | 8 | Scan Mechanic | Gameplay | MVP | Designed | design/gdd/scan-mechanic.md | FPS Movement, Scan Node, Point Cloud, Orchestrator |
-| 9 | Entity System | Gameplay | MVP | In Review (round-3 fresh-context review 2026-07-25 **NEEDS REVISION** — 4 blockers + 7 recommended, full-mode w/ creative-director synthesis + first-ever ux-designer pass; **zero structural findings** — blocker character narrowing across rounds (r1 structural, r2 structural, r3 none); **all 4 blockers + 6 recommended fixed same session** — Formula 4 room-selection weighting authored (was qualitative prose only, overruling Open Q#3's own "not blocking" claim), load guards for `I_min<I_max` + `SPEED_MAX>SPEED_BASE` + Formula 4's `k`/`ε`, `session:end`-vs-retarget same-tick ordering, two variable-table wording contradictions fixed, AC-ES45/45b vacuous-pass rewrite, config-guard acceptance ACs, Rule 9 Type-C asymmetry ruled an ACCEPTED asymmetry by CD (documented, not redesigned). AC 58→65. Pending a THIRD fresh-context re-review before Approved per standing don't-self-approve doctrine — see review log) | design/gdd/entity-system.md | Point Cloud, Floor Plan, Orchestrator |
+| 9 | Entity System | Gameplay | MVP | In Review (round-4 fresh-context review 2026-07-25 **NEEDS REVISION** — 9 blockers + 12 recommended, full-mode w/ creative-director synthesis; **round-3's "narrowing to zero structural findings" claim falsified** — round-4 found 2 BLOCKING acceptance criteria (AC-ES21, AC-ES10b) that failed against a mathematically correct implementation, undetected across 3 prior rounds + this round's first 6 specialists, plus a 4th+5th instance of the recurring "declared invariant, no load guard" class (`SCALE_CAP`, `SPEED_BASE>0`); **all 9 blockers + 8 recommended fixed same session** — 2 arithmetic corrections (Formula 2 & Formula 4 worked examples + their ACs), `SCALE_CAP`/`SPEED_BASE`/`type_c_trail_delay` load guards, Formula 4 eligible-room-set interface clarified (`floorplan:update`, not incremental reveal-tracking), Type B/retarget same-tick RNG ordering + bounded re-roll fallback, Type C pursuit-audio gap closed, Rule 9 ruling extended (not reopened) to A/B mechanical stakes + cross-session tell erosion. AC 65→71. **CD process ruling: round-5, if needed, should be a narrow single-reviewer arithmetic/invariant audit, not another 6-specialist pass** — the format has missed pure-arithmetic defects for 4 rounds running. Pending a FOURTH fresh-context re-review before Approved per standing don't-self-approve doctrine — see review log) | design/gdd/entity-system.md | Point Cloud, Floor Plan, Orchestrator |
 | 10 | Win/Lose & Ending | Gameplay | MVP | Designed | design/gdd/win-lose-ending.md | Scan Node, Entity System, Orchestrator |
 | 11 | Cycle / Meta Layer | Meta | Alpha | Not Started | — | Persistence, Win/Lose, Orchestrator |
 | 12 | UI / HUD | UI | MVP | In Review (round-7 independent re-review 2026-07-15, 4 blockers resolved, AC 60→60; **Approved gated on producer mechanical citation-check hook** per CD — 5th consecutive round the citation class slipped a manual pass; no round-8 manual pass) | design/gdd/ui-hud.md | Scan Mechanic, Entity, Scan Node, Orchestrator |
@@ -192,19 +192,35 @@ UI, no jump scares, horror from the familiar made wrong, a found-footage cycle.
   records the inbound contract. The growing-void tell (Player-Fantasy Anchor moment) can now
   render. (Point Cloud Renderer Open Q#5.)
 
-- **Entity System (#9) → Point Cloud Renderer (#1) — `entity:position {position}` inbound contract
-  UNRECORDED (NEW, 2026-07-25, round-3 design-review structural pass).** Entity System added
-  `entity:position` in its round-2 revision (Core Rule 11 / AC-ES47) to close the gap where Type B
-  and Type C had no way to broadcast their live post-spawn position. The event is registered in
-  `design/registry/entities.yaml` as provisional and is declared in Entity System's own Downstream
-  table — but **Point Cloud Renderer's GDD has no inbound record of it** (grep-confirmed: zero
-  occurrences of `entity:position` in `design/gdd/point-cloud-renderer.md`), and the item was never
-  added to this list when it was created. The project's own rule requires bidirectional
-  dependencies: if A depends on B, B's doc must mention A. Round-2's sibling event
-  (`entity:transform`) *did* get an entry here; this one was missed. **Without this, Point Cloud
-  Renderer still cannot render a moving Type B/C** — the exact gap round-2 believed it had closed.
-  *Resolve at Point Cloud Renderer's next pass (it is already in MAJOR REVISION NEEDED, so this
-  folds into that work).*
+- ~~**Entity System (#9) → Point Cloud Renderer (#1) — `entity:position {position}` inbound contract
+  UNRECORDED.**~~ **RESOLVED 2026-07-25** by Point Cloud Renderer's round-6 design-review revision:
+  `entity:position` is now recorded inbound in point-cloud-renderer.md's Interactions/Dependencies
+  tables and drives Formula 3/5's CPU-side distance computation (new AC-C09). Both directions of
+  this contract are now bidirectionally recorded.
+
+- **Point Cloud Renderer (#1) ↔ Accessibility (`design/ux/accessibility-requirements.md` A-V3) — flicker
+  ceiling VIOLATED (NEW, 2026-07-26, round-7 design-review).** A-V3 mandates a **≤3 flashes/s**
+  ceiling plus a **reduced-distortion toggle** for `PROXIMITY_CORRUPTED` flicker + jitter, and is
+  priority-flagged as the one accessibility requirement with a safety dimension ("must be
+  implemented before any external playtest"). Point Cloud Renderer's `flicker_rate` (Formula 5)
+  declares a safe range of **5–40 rad/s** — the upper bound is **6.37 Hz, over 2× the A-V3 ceiling**
+  (the default 18 rad/s = 2.86 Hz sits barely under it). The renderer GDD never cites A-V3, offers
+  no reduced-distortion toggle, and has no AC for either. **Resolve by:** narrowing `flicker_rate`'s
+  safe range to satisfy ≤3 flashes/s (≤ ~18.8 rad/s), cross-referencing A-V3 in Formula 5 + Tuning
+  Knobs, and adding a BLOCKING AC for the flash ceiling and the toggle. Owner: Point Cloud Renderer
+  GDD; A-V3 also names UI/HUD as a co-implementer.
+
+- **Point Cloud Renderer (#1) → Level Design — UNDECLARED DEPENDENCY (NEW, 2026-07-26, round-7
+  design-review).** Point Cloud Renderer §B's round-6 Anchor-moment softening explicitly hands the
+  "player self-discovers the Type A void before the system confirms it" pacing promise to **Level
+  Design's scan-node placement** — how long a void sits in a node's sightline before capture, and
+  from what approach angle. But Level Design appears **nowhere in this systems index** (not in the
+  enumeration, dependency map, or design order) and is absent from the renderer's own Dependencies
+  section, violating the project's bidirectional-dependency rule. Consequence: every renderer AC can
+  pass, the system ships "done," and the Analyst→Witness transition never lands — with no gate to
+  catch it. **Resolve by:** deciding whether Level Design is a tracked system (add to the index) or
+  whether the placement constraint belongs to Floor Plan / Scan Node, then recording the dependency
+  in both directions. Owner: producer + creative-director.
 
 - **Orchestrator (#5) — `scan:*` + `floorplan:*` contracts.** Scan Node (#4) emits
   authoritative `scan:complete` / `scan:abort` / `scan:coverage` /

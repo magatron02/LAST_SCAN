@@ -1,8 +1,8 @@
 # Point Cloud Renderer
 
-> **Status**: In Design (round-5 fresh-context re-review `/design-review` 2026-07-18 returned **MAJOR REVISION NEEDED** — verdict escalated from round-4's NEEDS REVISION. All 4 round-4 blockers confirmed still open on unchanged text; 3 new/broadened blockers (ENTITY_SPIKE has NO density spec anywhere → unbounded worst-case memory; Formula 3/5 broadened — no inbound event carries continuous entity distance/position, so the effect is unimplementable even CPU-side) + 2 round-4 recommended items elevated to blocking (Anchor-pacing contradicts §B Player Fantasy; entity:transform clamp has no AC) = 7 blockers. MAJOR-by-**scope** not by-vision — three load-bearing systems each need real redesign (Formula 2 scan-completeness-aware model; Formula 3/5 cross-system contract w/ Entity + Orchestrator; ENTITY_SPIKE density model from zero). Fixes deferred to dedicated fresh sessions per the don't-self-approve process condition — the same-session patch loop is what bred rounds 2–5. See `design/gdd/reviews/point-cloud-renderer-review-log.md`. Do NOT self-approve.)
+> **Status**: In Design (round-6 fresh-context re-review `/design-review` 2026-07-25 returned **NEEDS REVISION** — downgraded from round-5's MAJOR REVISION NEEDED. Two of round-5's three "needs real redesign" items closed as doc-fixes: the Formula 3/5 cross-system contract is resolved by Entity System's same-day `entity:position` addition (Core Rule 11) combined with the renderer's own `camera.position` — no new upstream event required; Formula 5's fragment injection point is a normative pin, not a redesign. Remaining structural work — Formula 2's scan-completeness-conditioned baseline (unscanned tiles no longer false-fire as voids), ENTITY_SPIKE's density spec (new Formula 1b), and the Anchor-moment pacing gate (confirmation dwell + softened §B) — all fixed this session per user decision to revise now, alongside the AC-D01/entity:transform-clamp gaps and the now-ratified `entity:transform` contract. AC count 28→33. See `design/gdd/reviews/point-cloud-renderer-review-log.md`. Pending a fresh-context round-7 re-review before Approved, per the standing don't-self-approve process condition — do NOT self-approve.)
 > **Author**: magatron02 + agents
-> **Last Updated**: 2026-07-18
+> **Last Updated**: 2026-07-25
 > **Implements Pillar**: Diegetic Matterport UI · Horror from familiar made wrong
 
 ## Overview
@@ -48,8 +48,17 @@ The point cloud never breaks from LIDAR aesthetic. This is the game's core commi
 found-footage: the player never sees a monster. They see the shape of where data should exist
 and does not. The horror is structural — it lives in the geometry of absence.
 
-*Anchor moment*: the first time the player notices a Type A void — not a sudden reveal but a
-slow recognition. The void has been there. The player has been looking past it.
+*Anchor moment (round-6 revision)*: the first time the player notices a Type A void. This
+renderer's own detection (Formula 2) confirms it shortly after with an error message — the
+system cannot promise the player notices *before* the game does, only that the geometry was
+there to be read first, and that confirmation follows an already-active ambiguous NEAR-tier
+disturbance rather than pre-empting it (see Formula 2's confirmation-dwell gate). The deeper
+promise — "the void has been there, the player has been looking past it," true self-discovery
+well before any system confirms it — is a **placement** question: how long a void sits in a
+node's sightline before that node captures it, and from what approach angle, is Level Design's
+responsibility (scan-node placement), not something this renderer's formulas can deliver alone.
+This GDD no longer claims to guarantee that pacing; it guarantees the void is geometrically
+present and correctly detected once seen.
 
 ## Detailed Design
 
@@ -123,7 +132,8 @@ slow recognition. The void has been there. The player has been looking past it.
    (its Formula 1, dwell-based, asymptotic to ~1.75×) and the dwell state; the renderer does not
    compute growth — it applies whatever scale it is handed, re-scaling the occluder mesh in place
    without rebuilding it. See Interactions for the inbound `entity:transform {scale}` contract
-   (provisional — pending Entity System ratification, Open Cross-System Item).
+   (**ratified, round-6** — Entity System's Core Rule 6/AC-ES17b now emits it; the Open
+   Cross-System Item is closed).
    **Silhouette edge quality**: `GL_POINTS` carry per-vertex (not interpolated) depth, so at the
    0.018-unit point size the silhouette boundary pops binary (a point is fully culled or fully
    visible), not antialiased. This is expected and on-brand for the LIDAR aesthetic — noted here
@@ -155,7 +165,8 @@ States are not mutually exclusive; any combination may be active simultaneously.
 |---|---|---|
 | Floor Plan System | Room AABB(s), surface list | Rebuild BASE layer geometry |
 | Entity System | `entity:spawn {type, position}` / `entity:despawn {}` (via Orchestrator) | Activate/deactivate matching entity layer; move it |
-| Entity System | `entity:transform {scale}` (via Orchestrator) — **provisional, pending Entity System ratification** | Re-scale the active Type A VOID_MASK occluder in place to `scale` (Entity Formula 1's `silhouette_scale`). Continuous — emitted while a Type A void grows/decays with dwell. No type label beyond the already-active layer. See Open Cross-System Item. |
+| Entity System | `entity:transform {scale}` (via Orchestrator) — **ratified, round-6** (Entity System Core Rule 6 / AC-ES17b) | Re-scale the active Type A VOID_MASK occluder in place to `scale` (Entity Formula 1's `silhouette_scale`), **clamped to `[1.0, 1.75)`** before being applied to the mesh — an out-of-range or garbage value is clamped to the nearest bound, never applied raw (AC-ST06). Continuous — emitted while a Type A void grows/decays with dwell. No type label beyond the already-active layer. |
+| Entity System | `entity:position {position}` (via Orchestrator) — **new, round-6** (Entity System Core Rule 11 / AC-ES47) | Reposition the active ENTITY_SPIKE/ENTITY_GHOST layer to the new world position, and update the cached entity position Formula 3/5 use for the CPU-side distance `d` and the in-shader `uEntityPos` radius gate. Latest-value kind, emitted every tick while Type B or Type C is active; never emitted for Type A (stationary — `entity:spawn`'s position already suffices, see Formula 3's Distance source) or while no entity is active. |
 | Orchestrator `entity:proximity {tier}` | Proximity tier (FAR/MEDIUM/NEAR/ADJACENT) | Set PROXIMITY state |
 | Orchestrator `scan:capture_frame {angle, progress}` | Capture angle + progress % | Trigger SCAN_MATERIALIZING for current arc |
 | Orchestrator `scan:complete` | Node ID | Seal materializing points into BASE |
@@ -207,6 +218,49 @@ against malformed data, not a path reachable by ordinary large rooms.
 
 ---
 
+### Formula 1b — ENTITY_SPIKE Density (round-6 addition)
+
+Round-5 found ENTITY_SPIKE (Type B's "impossibly dense cluster," Core Rule 2) had no density
+spec anywhere in this GDD — no formula, no point count, no ceiling — making its worst-case memory
+open-ended. This formula closes that gap.
+
+The entity_spike_density formula is defined as:
+
+`N_spike = floor( A_spike × ρ_base_local × M_spike )`
+
+where `ρ_base_local` is the local tile's own baseline density (`D × W_s` for the surface the
+spike sits on — the same value Formula 2 calls `ρ_base`), so a spike's "impossible density" is
+always relative to its surroundings, not a fixed absolute count.
+
+**Variables:**
+| Variable | Symbol | Type | Range | Description |
+|---|---|---|---|---|
+| Spike footprint area | A_spike | float | 0.25–4.0 m² | Cluster's occupied area — tuning knob, default 1.0 |
+| Local baseline density | ρ_base_local | float | = D × W_s | Same value as Formula 2's `ρ_base` for the spike's surface |
+| Spike density multiplier | M_spike | float | 2.0–6.0 | "How impossible" the cluster reads — tuning knob, default 3.0 |
+| Output | N_spike | int | ≥1 | Point count for the ENTITY_SPIKE cluster |
+
+**Output range:** N_spike ≥ 1 (floor-clamped, same defensive guard as Formula 1's N).
+
+**Example:** floor tile, D=900, W_s=1.2 (ρ_base_local = 1,080), A_spike=1.0, M_spike=3.0 →
+N_spike = floor(1.0 × 1,080 × 3.0) = 3,240 pts. Against Formula 2's default `A_tile`=1.0 (denom
+= 900×0.10×1 = 90, threshold σ=2.5 → ≈225-pt deviation needed), a 3,240-pt addition trivially
+registers as a spike — satisfying the existing detection contract without further tuning.
+
+**Combined layer budget (round-6 addition, performance-analyst finding):** `density_budget_ceiling`
+(Formula 1, above) bounds BASE alone. Because only one entity type is active at a time (Entity
+System Core Rule 3 — single entity, despawn-before-spawn), ENTITY_SPIKE and ENTITY_GHOST never
+coexist; the only large addition to guard against is ENTITY_GHOST, a full rigid-translated
+duplicate of BASE (Core Rule 2/AC-C04). **Guard:** at Type C spawn, if `BASE_count × 2 >
+density_budget_ceiling` (BASE alone already exceeds half the ceiling), ENTITY_GHOST is built at a
+fixed decimation stride (`ghost_decimation_stride`, tuning knob, default 1 = no decimation,
+auto-raised only when this guard trips) so the combined total fits — at 15% opacity and this
+game's sparse LIDAR aesthetic, a decimated duplicate is not perceptibly different from a 1:1 one.
+ENTITY_SPIKE's `N_spike` (thousands, not millions) never approaches this guard and needs no
+equivalent check.
+
+---
+
 ### Formula 2 — Anomaly Density Sigma
 
 The anomaly_density_sigma formula is defined as:
@@ -246,13 +300,39 @@ would degenerate into a ~1.5M-point main-thread pass every 0.5 s — the exact s
 spikes AC-P01 guards against. With it, cost scales with `(active-tiles × points-per-tile ×
 active-occluders)`, not with total scene point count.
 
+**Baseline density conditioned on scan coverage (normative, round-6 fix):** `ρ_base` as defined
+below (`D × W_s`) is the density a tile would show **if fully scanned**. Core Rule 7 means BASE
+only gains points for a tile once the owning scan node's capture arc completes (`scan:complete`)
+— so an unscanned or partially-scanned tile has genuinely lower rendered density than a
+fully-scanned one, for reasons that have nothing to do with an entity. Sampling such a tile
+against the full `ρ_base` produces a large false deficit — an unscanned tile computes σ ≈ −10.0
+at defaults (see worked example below), over 2× the magnitude of a real Type A void's σ ≈ −4.0
+— meaning ordinary unexplored geometry constantly false-fires as a "void" throughout most of a
+playthrough. This was round-5's confirmed model-level blocker; this is the fix.
+
+Each active detection tile therefore carries a **coverage fraction** `f_cov ∈ [0, 1]` — the
+fraction of the tile's area backed by completed scan data, sourced from the same per-node
+`scan:complete` state the renderer already consumes to seal BASE geometry (Interactions) — no
+new upstream event required. The tile's *effective* baseline becomes `ρ_base_eff = f_cov ×
+ρ_base`, substituted for `ρ_base` everywhere in the σ formula below. Tiles with `f_cov` at or
+below `min_coverage_fraction` (tuning knob, default 0.05) are excluded from the active set
+entirely — not sampled — both because there's nothing to detect yet and to avoid numerical
+instability from dividing by a near-zero effective baseline. A tile with `min_coverage_fraction <
+f_cov < 1` (straddling a scan boundary) is sampled normally against its scaled `ρ_base_eff`:
+because `ρ_obs` in that tile is naturally lower in the same proportion (only the scanned portion
+has points), the ratio correctly reads σ ≈ 0 for an ordinary partially-scanned tile, not a false
+deficit (see AC-D02b). `f_cov = 1` (fully scanned) reduces to the original formula unchanged —
+every worked example below assumes a fully-scanned tile (`f_cov = 1.0`) and is unaffected.
+
 **Variables:**
 | Variable | Symbol | Type | Range | Description |
 |---|---|---|---|---|
 | Observed density | ρ_obs | float | 0–∞ pts/m² | Rendered (camera-visible, post-occlusion) density of `BASE + ENTITY_SPIKE` points in detection tile (ENTITY_GHOST excluded — see Sampling space) |
-| Baseline density | ρ_base | float | 50–3000 pts/m² | Expected density = D × W_s from Formula 1 (min legal product: 100 × 0.5). **Load-time guard**: D > 0 and every W_s > 0 are validated at config load; a config yielding ρ_base = 0 is rejected (division-by-zero guard, mirrors Floor Plan's load-time validation pattern) |
+| Baseline density | ρ_base | float | 50–3000 pts/m² | Expected density = D × W_s from Formula 1, **if fully scanned** (min legal product: 100 × 0.5). Substituted by `ρ_base_eff = f_cov × ρ_base` per-tile (see Baseline density conditioned on scan coverage, above). **Load-time guard**: D > 0 and every W_s > 0 are validated at config load; a config yielding ρ_base = 0 is rejected (division-by-zero guard, mirrors Floor Plan's load-time validation pattern) |
+| Coverage fraction | f_cov | float | 0–1 | Fraction of the tile's area backed by completed scan data (round-6 addition) — sourced from `scan:complete` state, not a tuning knob |
+| Min. coverage to sample | min_coverage_fraction | float | 0.01–0.15 | Tuning knob, default 0.05 — tiles at or below this `f_cov` are excluded from the active set (round-6 addition) |
 | Noise coefficient | k_noise | float | 0.05–0.30 | Natural variance model — tuning knob, default 0.10. **Load-time guard**: k_noise > 0 validated at config load; k_noise = 0 zeroes the denominator (→ ±∞/NaN σ) and is rejected (AC-D06) |
-| Tile area | A_tile | float | 0.25–4.0 m² | Detection tile size — tuning knob, default 1.0. **Load-time guard**: A_tile > 0 validated at config load; A_tile = 0 zeroes the denominator and makes √(A_ref/A_tile) undefined, and is rejected (AC-D06) |
+| Tile area | A_tile | float | 0.5–4.0 m² (narrowed, round-6 — was 0.25–4.0) | Detection tile size — tuning knob, default 1.0. **Load-time guard**: A_tile > 0 validated at config load; A_tile ≤ 0 zeroes/undefines the denominator (√(A_ref/A_tile) is NaN for negative A_tile) and is rejected (AC-D06) |
 | Reference area | A_ref | float | const=1.0 m² | Normalization constant |
 | Output | σ | float | signed | Standard deviations from baseline |
 
@@ -266,6 +346,19 @@ active-occluders)`, not with total scene point count.
   Entity System's "no type taxonomy" fantasy at the event-contract level. No documented subscriber
   (UI/HUD picks error-message intensity from magnitude) needs the direction; if a future feature
   genuinely does, restoring it must be a deliberate reviewed decision, not a latent leak.
+
+**Confirmation dwell (normative, round-6 addition):** a tile's `|σ|` must remain ≥
+`anomaly_sigma_threshold` for `anomaly_confirm_samples` (tuning knob, default 2) CONSECUTIVE
+sampling passes before the event fires — not on the first qualifying pass alone. This buys a beat
+of unconfirmed exposure between a real anomaly entering the sampled set and the game confirming
+it, so the renderer's own tell doesn't pre-empt the player's chance to notice first (Player
+Fantasy §B). If `|σ|` drops below threshold on any intervening pass, the consecutive count resets
+to 0. **Ordering constraint:** `anomaly_confirm_samples × anomaly_sample_interval` must be tuned
+so the confirming event cannot fire before NEAR-tier jitter (Formula 3) has been active for at
+least one full `anomaly_sample_interval` — escalation is sequenced (ambiguous doubt → confirmed
+witness), not just delayed. At defaults (2 samples × 0.5s = 1.0s) this holds trivially, since NEAR
+triggers as soon as the entity crosses 8.0m, well before a Type A tile at close range would
+typically be sampled. Re-tune together if either default changes.
 
 The `√(A_ref / A_tile)` denominator term (normalizes for tile size, Poisson counting noise):
 a tile of area `A_tile` at density `ρ_base` holds `N = ρ_base × A_tile` points, whose count
@@ -292,6 +385,12 @@ anomaly. Values 2.5–5.0 are soft tells. Values below 2.5 are normal variance.
 - Tile-size sanity (Type B deviation +450 at `A_tile = 0.25 m²`): denom = 900×0.10×√(1/0.25) =
   900×0.10×2 = 180 → σ = 450/180 = 2.5 — the *same* absolute deviation registers as a **weaker**
   tell in a smaller tile, because a small tile's natural noise is larger. Correct direction ✓
+- **Coverage-conditioned examples (round-6 addition):** wholly unscanned tile (`f_cov = 0`,
+  below `min_coverage_fraction`) → excluded from the active set, never sampled, no event — this
+  is the case that used to compute a false σ ≈ −10.0 under the old (unconditioned) formula.
+  Half-scanned tile (`f_cov = 0.5`, no entity present): `ρ_base_eff = 0.5 × 900 = 450`; an
+  ordinary tile with only its scanned half populated reads `ρ_obs ≈ 450` → σ = 0/45 = 0.0 → no
+  event ✓ (denom scales with `ρ_base_eff`, so the noise floor shrinks proportionally too).
 
 ---
 
@@ -307,7 +406,7 @@ J = J_min + (J_max − J_min) × (1 − t)²
 **Variables:**
 | Variable | Symbol | Type | Range | Description |
 |---|---|---|---|---|
-| Entity distance | d | float | 0–∞ m | World-space distance from entity to player |
+| Entity distance | d | float | 0–∞ m | World-space distance from entity to player — computed CPU-side each frame from a cached entity position against `camera.position` (see Distance source, below); not received as a scalar event |
 | Tier inner edge | d_min | float | per tier | Closest bound of tier band (m) |
 | Tier outer edge | d_max | float | per tier | Furthest bound of tier band (m) |
 | Normalised position | t | float | 0–1 | 0=closest to player, 1=at outer edge |
@@ -337,18 +436,35 @@ continuity invariant above) — a config violating either is rejected.
 The (1−t)² quadratic: jitter rises sharply as entity closes, not linearly.
 Makes the final metres of approach feel urgent and non-telegraphed.
 
+**Distance source (normative, round-6 fix):** `d` is derived CPU-side, not received as a scalar
+event. For a stationary Type A entity, `d` is computed every frame from `entity:spawn`'s one-time
+position (cached — the position never changes, AC-ES13) against the current camera position. For
+Type B/C, `d` is computed every frame from the latest cached `entity:position {position}` (Entity
+System Core Rule 11 — emitted every tick while Type B or Type C is active; see Interactions)
+against the current camera position. The renderer already holds a reference to the active
+`THREE.PerspectiveCamera` to render the scene at all, so no additional upstream event beyond
+`entity:position` itself is required. `camera.position` is FPS Movement's own render-frame image
+of `player:position` — the two are not independently sourced, so no separate contract is needed
+to keep them in sync. *(Closes round-5's "Formula 3/5 unimplementable" blocker — the prior gap was
+that only `entity:proximity {tier}`, a 4-value enum, was available; `entity:position` supplies the
+missing continuous position.)*
+
 **Application mechanism (normative — GPU vertex shader, not CPU buffer rewrite):** jitter is a
 GPU-side vertex displacement, **not** a per-frame CPU rewrite of point positions. The BASE
 `PointsMaterial` is extended via `onBeforeCompile` to inject: a per-point pseudo-random unit
 offset (hashed from the vertex's own index/position, stable per point), a `uTime` uniform
-(advanced once per frame on the CPU), and a per-frame `uJitter` uniform (= J, computed once from
-the formula). The vertex shader displaces each in-influence point by `uJitter × hash(...) ×
-noise(uTime)`. The CPU touches only two scalar uniforms per frame — **no `position` attribute is
-rewritten or re-uploaded**. This keeps the effect off the ~100k-point/~1.2MB-per-frame CPU→GPU
-cost path (see Performance / AC-P01). `entity_influence_radius` is passed as a uniform; points
-outside it receive zero displacement in-shader. *(Rationale: at defaults a 5 m radius over
-900 pts/m² is ~70–100k points; rewriting+uploading that every frame during proximity is not
-viable on the min-spec baseline — see technical-preferences.md.)*
+(advanced once per frame on the CPU), a per-frame `uJitter` uniform (= J, computed once from the
+formula using the CPU-derived `d` above), and a per-frame `uEntityPos` vec3 uniform (the cached
+world-space entity position above, used for the in-shader `entity_influence_radius` gate). The
+vertex shader displaces each in-influence point (`distance(vertexWorldPos, uEntityPos) <
+entity_influence_radius`) by `uJitter × hash(...) × noise(uTime)`. The CPU touches only three
+small per-frame values (two scalars + one vec3) — **no `position` attribute is rewritten or
+re-uploaded**. This keeps the effect off the ~100k-point/~1.2MB-per-frame CPU→GPU cost path (see
+Performance / AC-P01); three floats/frame is categorically different from a buffer rewrite.
+`entity_influence_radius` itself is a static uniform (set once, a tuning knob — not re-uploaded
+per frame). *(Rationale: at defaults a 5 m radius over 900 pts/m² is ~70–100k points; rewriting+
+uploading that every frame during proximity is not viable on the min-spec baseline — see
+technical-preferences.md.)*
 
 **Injection point (normative):** the displacement is applied to the `transformed` position vector
 **before** `#include <project_vertex>`, so that `gl_PointSize`'s `sizeAttenuation` falloff
@@ -434,6 +550,19 @@ hue**. This is the round-3 respec of the previously-unspecified "random colour f
 **value/brightness** disturbance only, never a hue shift, so it cannot leak entity type through a
 new colour channel (the game's uniform-green "no colour taxonomy" commitment holds — see Overview).
 
+**Fragment injection point (normative, round-6 fix):** the `× m` multiply is applied to
+`outgoingLight` (equivalently `diffuseColor.rgb` for an unlit `PointsMaterial`) inside the
+`#include <output_fragment>` block, strictly **before** `#include <tonemapping_fragment>` and
+`#include <colorspace_fragment>` run. Both of those always execute on a material's fragment
+colour in r171 (tonemapping unless `NoToneMapping`/`toneMapped:false`; colorspace encode always,
+at the renderer's `outputColorSpace`) — injecting after them would apply the linear `m ∈ [0.4,
+1.0]` range against an already-tonemapped/encoded value, changing the perceived brightness curve
+away from the linear one this formula's variable table promises. To remove the ambiguity
+entirely rather than rely only on injection order, BASE's material additionally sets
+`material.toneMapped = false` explicitly (consistent with the "points are unlit" rule in
+Visual/Audio Requirements). This is the same extension point Formula 3's jitter uses — one
+`onBeforeCompile`, one `customProgramCacheKey()` override covering both.
+
 **Variables:**
 | Variable | Symbol | Type | Range | Description |
 |---|---|---|---|---|
@@ -507,7 +636,7 @@ at the trough, never inverts, never changes hue.
 | System | Dependency type | Interface |
 |---|---|---|
 | Floor Plan System | Soft (data consumer) | Room AABB list + surface definitions → consumed at session load and on `floorplan:update` events to rebuild BASE layer |
-| Orchestrator | Event bus (required) | Receives: `entity:proximity {tier}`, `entity:spawn {type, position}`, `entity:despawn {}`, `entity:transform {scale}` *(provisional — see below)*, `scan:capture_frame {angle, progress}`, `scan:complete {nodeId}`, `scan:abort`. Emits: `renderer:anomaly_density {sigma}` |
+| Orchestrator | Event bus (required) | Receives: `entity:proximity {tier}`, `entity:spawn {type, position}`, `entity:despawn {}`, `entity:transform {scale}` *(ratified, round-6)*, `entity:position {position}` *(new, round-6)*, `scan:capture_frame {angle, progress}`, `scan:complete {nodeId}`, `scan:abort`. Emits: `renderer:anomaly_density {sigma}` |
 
 The renderer has no hard structural upstream dependencies — it is Foundation layer.
 The Floor Plan dependency is a data-consumer relationship: the renderer does not call
@@ -518,7 +647,7 @@ Floor Plan APIs directly; it receives AABB data via the Orchestrator event bus.
 | System | What they need | Interface |
 |---|---|---|
 | Floor Plan System | Rendering capability for room geometry | Provides AABB data; this system renders it |
-| Entity System | Rendering capability for entity types | Sends entity type + world position → this system activates/moves the correct layer (VOID_MASK / ENTITY_SPIKE / ENTITY_GHOST). For Type A, also sends the continuous `silhouette_scale` (its Formula 1) via `entity:transform {scale}` → this system re-scales the occluder. ⚠️ *Provisional: Entity System's GDD (already Designed) currently emits only `entity:spawn`/`entity:despawn`; it must be amended to emit `entity:transform {scale}` for the growing-void tell to render. Tracked as an Open Cross-System Item.* |
+| Entity System | Rendering capability for entity types | Sends entity type + world position → this system activates/moves the correct layer (VOID_MASK / ENTITY_SPIKE / ENTITY_GHOST). For Type A, also sends the continuous `silhouette_scale` (its Formula 1) via `entity:transform {scale}` → this system re-scales the occluder (ratified, round-6 — Entity System Core Rule 6/AC-ES17b). For Type B/C, sends continuous position via `entity:position {position}` every tick → this system repositions the layer and feeds Formula 3/5's distance computation (new, round-6 — Entity System Core Rule 11/AC-ES47). Both contracts are now recorded on both sides; no Open Cross-System Item remains for either. |
 | Scan Mechanic | Point materialization during scan sequence | Sends `scan:capture_frame` events; this system animates opacity ramp |
 | UI/HUD | Anomaly density data for error messages | Subscribes to `renderer:anomaly_density {sigma}` |
 | Found-Footage Layer | Rendered scene as compositing target | Applies post-processing artifacts on top of the renderer's Three.js scene output |
@@ -539,12 +668,17 @@ This is a data-dependency pattern, not a circular dependency.
 | `base_density_floor` | 100 pts/m² | 50–100 | Auto-scale can't reduce enough; large scenes rejected at load | D can scale toward zero; sparse/sub-1-point surfaces (defeats the AC-E01 guard) |
 | `surface_type_weights` | floor:1.2, wall:1.0, ceil:0.6 | 0.5–1.5 per surface | One surface dominates; imbalanced spatial read | Surface invisible at extreme low; rooms lose geometry |
 | `k_noise` (noise coefficient) | 0.10 | 0.05–0.30 | False positives in empty rooms; constant error messages | Entity anomalies require extreme deviation; tells too subtle |
-| `A_tile` (detection tile size) | 1.0 m² | 0.25–4.0 | Loses spatial resolution; Type A silhouette unlocalizable | Threshold over-raised + low-count instability at fine resolution — genuine anomalies in a small tile struggle to register (Formula 2 normalizes per-tile noise via `√(A_ref/A_tile)`); also more tiles to sample |
+| `A_tile` (detection tile size) | 1.0 m² | 0.5–4.0 (narrowed, round-6 — was 0.25–4.0) | Loses spatial resolution; Type A silhouette unlocalizable | Threshold over-raised + low-count instability at fine resolution — genuine anomalies in a small tile struggle to register (Formula 2 normalizes per-tile noise via `√(A_ref/A_tile)`); also more tiles to sample. Narrowed floor: at the old 0.25 minimum combined with max `anomaly_sample_radius`, the sampling pass degenerated to ~1.77M points/pass (comparable to the whole scene budget) — see that knob's note |
 | `anomaly_sigma_threshold` | 2.5 σ | 1.5–4.0 | Entity must be very dense/close to trigger tells; horror subdued | Noise-driven events fire constantly in normal rooms |
 | `anomaly_sample_interval` | 0.5 s | 0.1–2.0 | Tells lag the entity's actual movement; feels unresponsive | Visible-space sampling pass runs too often; eats frame budget |
-| `anomaly_sample_radius` | 12 m | 6–25 | Sampling pass touches more tiles/points per pass; cost climbs (Formula 2 "active tiles" bound loosens) | Anomalies past the radius never register; distant tells go silent |
+| `anomaly_sample_radius` | 12 m | 6–15 (narrowed, round-6 — was 6–25) | Sampling pass touches more tiles/points per pass; cost climbs (Formula 2 "active tiles" bound loosens). Narrowed ceiling: combined with the old `A_tile` minimum, radius=25 degenerated the per-pass cost to ~1.77M points inspected on the main thread every 0.5s — comparable to the entire scene's point budget. At the new max (15m) with the new `A_tile` minimum (0.5), worst case is ~636k points across ~1,414 tiles — bounded, not scene-equivalent | Anomalies past the radius never register; distant tells go silent |
+| `min_coverage_fraction` | 0.05 | 0.01–0.15 | Very-lightly-scanned tiles get sampled anyway; noisy near-zero-baseline σ | Barely-scanned tiles are excluded too long; genuine early anomalies near a fresh scan go undetected |
+| `anomaly_confirm_samples` | 2 passes | 1–5 | Confirmation lags real anomalies; feels unresponsive, undercuts entity tells too | Fires on the very first qualifying pass; Anchor-moment pacing regresses to round-5's instant-confirm problem |
 | `flicker_amplitude` (F_amp) | 0.4 | 0.0–0.6 | Points dim heavily during ADJACENT; approaches unreadable-black | No visible brightness disturbance; PROXIMITY_CORRUPTED loses its colour-channel tell (Formula 5) |
 | `flicker_rate` (F_rate) | 18 rad/s | 5–40 | Strobe-fast flicker; reads as a bug / accessibility risk | Slow pulse; reads as intentional breathing, not corruption |
+| `A_spike` (ENTITY_SPIKE footprint) | 1.0 m² | 0.25–4.0 | Cluster reads as a whole small room-feature rather than a point anomaly | Cluster too small to notice against BASE |
+| `M_spike` (ENTITY_SPIKE multiplier) | 3.0× | 2.0–6.0 | Cluster becomes visually solid/blob-like, breaks point-cloud read | Cluster too close to normal density variance; doesn't register as "impossible" |
+| `ghost_decimation_stride` | 1 (no decimation) | 1–8 (auto-raised only if the combined-budget guard trips) | N/A — only rises automatically near the density ceiling | N/A — this knob is a safety fallback, not a creative dial |
 | `entity_influence_radius` | 5.0 m | 2.0–10.0 | Entire room jitters; entity location non-localizable | Jitter zone too small; player trivialises proximity |
 | `J_max NEAR` | 0.020 m/frame | 0.005–0.035 | Jitter noticeable early; subliminal feel lost | NEAR state provides no feedback at all |
 | `J_max ADJACENT` | 0.180 m/frame | 0.08–0.30 | Room unreadable instantly; too sudden | Player can navigate ADJACENT normally; entity loses threat |
@@ -609,7 +743,7 @@ The renderer does not trigger UI directly.
 
 ## Acceptance Criteria
 
-28 criteria total. Gate levels per coding-standards.md: Logic/Integration = BLOCKING, Visual/Performance = ADVISORY.
+33 criteria total (round-6: +5 — AC-C09, AC-C10, AC-D01b, AC-D02b, AC-ST06). Gate levels per coding-standards.md: Logic/Integration = BLOCKING, Visual/Performance = ADVISORY.
 
 > **BLOCKING criteria are scene-graph/data/buffer assertions, never subjective pixel reads.** Per
 > coding-standards.md "What NOT to Automate," visual *fidelity* is not automated: BLOCKING
@@ -647,6 +781,12 @@ GIVEN ENTITY_A state with occluder mesh at position P, WHEN the occluder's mater
 **AC-C08 — Type A occluder functionally removes points from the rendered output**
 GIVEN ENTITY_A state with the occluder placed between the camera and a populated BASE region, WHEN one frame is rendered to an offscreen `WebGLRenderTarget` and the silhouette region's pixels are read back via `readRenderTargetPixels`, THEN the count of BASE-coloured (`#4ade80`) pixels inside the silhouette region is strictly lower than the count in the same region rendered with the occluder absent — i.e. the occluder demonstrably removes points from the visible set, not just holds the right material flags. This is a numeric buffer assertion (a pixel *count*, not a fidelity judgment) in a WebGL-capable integration context (`tests/integration/`), not a screenshot judgment nor a pure-logic unit test. Runs in the **WebGL-integration test tier** sanctioned in `.claude/docs/technical-preferences.md` and `coding-standards.md` (round-3 doctrine amendment — this tier's harness must exist before the Point Cloud ADR is marked Accepted; until then AC-C08 is BLOCKING-pending-infrastructure, with Open Q#1's prototype screenshot as interim belt-and-suspenders). **BLOCKING (Integration)**
 
+**AC-C09 — ENTITY_SPIKE/ENTITY_GHOST reposition on entity:position tick (round-6 addition)**
+GIVEN ENTITY_B or ENTITY_C active at position P₀, WHEN `entity:position {position: P₁}` arrives, THEN the layer's world position updates to P₁ within the same frame, with no rebuild of the layer's geometry (a position update only, not a `BufferGeometry` re-allocation); AND the cached entity position Formula 3/5 use for the CPU-side distance `d` and the in-shader `uEntityPos` uniform also updates to P₁ that same frame. **BLOCKING**
+
+**AC-C10 — ENTITY_SPIKE density formula (Formula 1b, round-6 addition)**
+GIVEN a Type B entity active on a floor tile with D=900, W_s=1.2, A_spike=1.0, M_spike=3.0, WHEN the ENTITY_SPIKE cluster builds, THEN its `BufferGeometry` contains exactly 3,240 points (`floor(1.0 × 1,080 × 3.0)`); AND the combined-layer budget guard (Formula 1b) is evaluated at spawn time — GIVEN it would be exceeded, THEN `ghost_decimation_stride` is raised only for a subsequent Type C spawn, never applied to ENTITY_SPIKE. **BLOCKING**
+
 ---
 
 ### Formulas (Section D)
@@ -654,11 +794,17 @@ GIVEN ENTITY_A state with the occluder placed between the camera and a populated
 **AC-D01 — Budget ceiling auto-scale, single-frame rebuild**
 GIVEN total point count at D = 900 would exceed 1,500,000 for the current room, WHEN the BASE layer builds at session load, THEN D is auto-scaled uniformly downward until total ≤ 1,500,000; AND the BASE `BufferGeometry` attribute swap completes in a single synchronous operation — no frame observes BASE point count as 0, nor as a partial (neither fully-old nor fully-new) value. *(Assertion is on point-count/geometry state across the swap, headlessly checkable — the "no visible pop" this produces is ADVISORY screenshot evidence, not part of this criterion.)* **BLOCKING**
 
+**AC-D01b — Budget ceiling reject-at-load when floor cannot fit (round-6 addition)**
+GIVEN total point count at `D = base_density_floor` (100) still exceeds `density_budget_ceiling` (1,500,000) for the current room set, WHEN the BASE layer attempts to build at session load, THEN the layout is rejected at load with an explicit error (no session starts with it) — the renderer does not silently scale D below `base_density_floor`, produce a partial/degenerate BASE layer, or render anything for that room set. **BLOCKING**
+
 **AC-D02 — Anomaly sigma event threshold (magnitude-only payload)**
-GIVEN A_tile = 1.0 m², k_noise = 0.10, ρ_base = 900 pts/m², and ρ_obs measured over `BASE + ENTITY_SPIKE` points (ENTITY_GHOST excluded), WHEN rendered ρ_obs = 1,350 (internal σ = +5.0, Type B spike), THEN renderer emits exactly one `renderer:anomaly_density {sigma}` with `sigma ≈ 5.0` (±0.01) and the payload contains **no type/label field and no sign** (`sigma ≥ 0`); WHEN rendered ρ_obs = 540 (internal σ = −4.0, Type A deficit), THEN exactly one event with `sigma ≈ 4.0` (magnitude — indistinguishable from a +4.0 spike, sign stripped per the round-3 type-oracle fix); WHEN rendered ρ_obs = 970 (|σ| ≈ 0.78), no event is emitted. **BLOCKING**
+GIVEN A_tile = 1.0 m², k_noise = 0.10, ρ_base = 900 pts/m², f_cov = 1.0 (fully scanned), and ρ_obs measured over `BASE + ENTITY_SPIKE` points (ENTITY_GHOST excluded), WHEN rendered ρ_obs = 1,350 (internal σ = +5.0, Type B spike), THEN renderer emits exactly one `renderer:anomaly_density {sigma}` with `sigma ≈ 5.0` (±0.01) and the payload contains **no type/label field and no sign** (`sigma ≥ 0`); WHEN rendered ρ_obs = 540 (internal σ = −4.0, Type A deficit), THEN exactly one event with `sigma ≈ 4.0` (magnitude — indistinguishable from a +4.0 spike, sign stripped per the round-3 type-oracle fix); WHEN rendered ρ_obs = 970 (|σ| ≈ 0.78), no event is emitted. All three cases additionally require `anomaly_confirm_samples` (default 2) consecutive qualifying passes before firing (see AC-D02b's sibling confirmation-dwell behaviour). **BLOCKING**
+
+**AC-D02b — Unscanned/partially-scanned tiles do not false-fire; confirmation dwell holds (round-6 addition)**
+GIVEN a tile with f_cov = 0 (wholly unscanned, at or below `min_coverage_fraction`), WHEN a sampling pass runs, THEN the tile is excluded from the active set and no event is evaluated for it; GIVEN a tile with f_cov = 0.5 and ρ_obs at exactly half of the surface's full ρ_base (the expected value for an evenly-scanned-half tile with no entity present), THEN σ ≈ 0 (computed against `ρ_base_eff = 0.5 × ρ_base`) and no event fires; GIVEN a tile crosses `|σ| ≥ anomaly_sigma_threshold` on one sampling pass but drops below it on the next, THEN no `renderer:anomaly_density` event fires (the consecutive-pass counter reset, `anomaly_confirm_samples` never satisfied). **BLOCKING**
 
 **AC-D03 — Jitter magnitude is quadratic, not linear; deterministic uniform; cache-key isolated; no jitter on materializing layer**
-GIVEN PROXIMITY_DISTURBED (NEAR: d_min=3.0m, d_max=8.0m, J_max=0.020m), WHEN the per-frame `uJitter` uniform (= J from Formula 3, computed CPU-side) is inspected, THEN at d = 5.0m (t=0.40) `uJitter ≈ 0.0072` (±10%) and at d = 3.5m (t=0.10) `uJitter ≈ 0.0162` (±10%). *(The assertion is on the deterministic CPU-side `uJitter` uniform value, NOT observed per-point GPU displacement — actual displacement is `uJitter × hash × noise(uTime)`, which is per-point and `uTime`-dependent and therefore not headlessly assertable per coding-standards' Determinism rule; the visible quadratic ramp is ADVISORY screenshot evidence.)* AND the jittered BASE material returns a `customProgramCacheKey()` distinct from ENTITY_SPIKE's and ENTITY_GHOST's (so the injected jitter program is not shared/dropped). AND materializing overlay points receive `uJitter` influence of 0 (they are outside BASE — 0×anything = 0). **BLOCKING**
+GIVEN PROXIMITY_DISTURBED (NEAR: d_min=3.0m, d_max=8.0m, J_max=0.020m), WHEN the per-frame `uJitter` uniform (= J from Formula 3, computed CPU-side from `d` — see Formula 3's Distance source) is inspected, THEN at d = 5.0m (t=0.40) `uJitter ≈ 0.0072` (±10%) and at d = 3.5m (t=0.10) `uJitter ≈ 0.0162` (±10%); AND the per-frame `uEntityPos` uniform matches the cached entity position (from `entity:spawn` for Type A or the latest `entity:position` for Type B/C) within one frame of any update. *(The assertion is on the deterministic CPU-side `uJitter`/`uEntityPos` uniform values, NOT observed per-point GPU displacement — actual displacement is `uJitter × hash × noise(uTime)`, which is per-point and `uTime`-dependent and therefore not headlessly assertable per coding-standards' Determinism rule; the visible quadratic ramp is ADVISORY screenshot evidence.)* AND the jittered BASE material returns a `customProgramCacheKey()` distinct from ENTITY_SPIKE's and ENTITY_GHOST's (so the injected jitter program is not shared/dropped). AND materializing overlay points receive `uJitter` influence of 0 (they are outside BASE — 0×anything = 0). **BLOCKING**
 
 **AC-D04 — Scan opacity hold-then-ramp curve**
 GIVEN SCAN_MATERIALIZING with T = 0.5s, h = 0.25, WHEN time elapses from frame start, THEN: t=0.10s → α=0.00; t=0.20s → α=0.20 (±0.02); t=0.35s → α=0.60 (±0.02); t=0.50s → α=1.00 exactly, points sealed permanently into BASE layer. **BLOCKING**
@@ -666,8 +812,8 @@ GIVEN SCAN_MATERIALIZING with T = 0.5s, h = 0.25, WHEN time elapses from frame s
 **AC-D05 — Jitter band bounds and continuity validated at load**
 GIVEN a proximity-tier config with `d_min = d_max` (or `d_min > d_max`) for any tier, OR with any tier's `J_min > J_max`, OR where a tier's `J_min` does not equal the next-tier-out's `J_max` (the cross-tier continuity invariant from Formula 3), WHEN config validation runs at load, THEN the config is rejected with an explicit error (no session starts with it); GIVEN the default bands and jitter floors (NEAR d 3.0–8.0m / J 0.000→0.020m, ADJACENT d 0.0–3.0m / J 0.020→0.180m), THEN load succeeds normally and jitter is continuous at the d=3.0m seam. **BLOCKING**
 
-**AC-D06 — Formula 2 denominator division-by-zero guarded at load (all three factors)**
-GIVEN a config with `D = 0` or any `surface_type_weights` entry `= 0` (ρ_base = 0), OR `k_noise = 0`, OR `A_tile = 0` — each of which zeroes or undefines the denominator `ρ_base × k_noise × √(A_ref/A_tile)` — WHEN config validation runs at load, THEN the config is rejected with an explicit error; GIVEN the defaults (D=900, weights 1.2/1.0/0.6, k_noise=0.10, A_tile=1.0), THEN load succeeds and Formula 2 never divides by zero or produces NaN. **BLOCKING**
+**AC-D06 — Formula 2 denominator division-by-zero guarded at load (all three factors, negative values included — round-6 widened)**
+GIVEN a config with `D ≤ 0` or any `surface_type_weights` entry `≤ 0` (ρ_base ≤ 0), OR `k_noise ≤ 0`, OR `A_tile ≤ 0` — zero zeroes/undefines the denominator `ρ_base × k_noise × √(A_ref/A_tile)`, and a negative `A_tile` additionally makes `√(A_ref/A_tile)` undefined (NaN) even before the multiplication — WHEN config validation runs at load, THEN the config is rejected with an explicit error; GIVEN the defaults (D=900, weights 1.2/1.0/0.6, k_noise=0.10, A_tile=1.0), THEN load succeeds and Formula 2 never divides by zero or produces NaN. *(Round-6: widened from `= 0` to `≤ 0` — the prose guard above already required `> 0`, but the AC only tested the zero case, leaving negative values untested.)* **BLOCKING**
 
 **AC-D07 — Formula 4 (scan opacity) denominator division-by-zero guarded at load**
 GIVEN a config with `T ≤ 0` or `h ≥ 1` — either of which zeroes the denominator `(1−h)×T` in Formula 4 — WHEN config validation runs at load, THEN the config is rejected with an explicit error; GIVEN the defaults (T=0.5s, h=0.25), THEN load succeeds and Formula 4 never divides by zero. **BLOCKING**
@@ -714,14 +860,29 @@ GIVEN SCAN_MATERIALIZING with points at any opacity, WHEN `scan:abort` arrives, 
 GIVEN NORMAL state (no VOID_MASK present), WHEN `entity:spawn {type: A, position: P}` arrives, THEN a depth-only occluder mesh (config per AC-C07) is created at P within the same frame and is the only non-`THREE.Points` renderable in the scene; WHEN `entity:despawn` arrives, THEN the occluder is removed within the same frame, the scene returns to points-only, and BASE points formerly culled by it become visible again. *(Mirrors AC-ST01's Type B lifecycle for the signature Type A void — its add/remove transition, previously untested.)* **BLOCKING**
 
 **AC-ST05 — Type A occluder ships at static scale 1.0 when `entity:transform` never arrives (degraded-mode guard)**
-GIVEN ENTITY_A active and NO `entity:transform {scale}` event is ever received this session (the Entity System amendment in Open Q#5 has not landed), WHEN the occluder is inspected over the entity's lifetime, THEN its scale remains exactly 1.0 (base humanoid proportions) and the void renders as a static, valid, non-broken silhouette — this is a defined, tested, shippable state, NOT a missing-feature error. *(Asserts the fallback the doc relies on is legitimate; the dwell-based growth flourish is a separate, deferred tell — Open Q#5.)* **BLOCKING**
+GIVEN ENTITY_A active and NO `entity:transform {scale}` event is ever received this session (e.g. an event-bus hiccup, or a build predating the round-6 ratification), WHEN the occluder is inspected over the entity's lifetime, THEN its scale remains exactly 1.0 (base humanoid proportions) and the void renders as a static, valid, non-broken silhouette — this is a defined, tested, shippable state, NOT a missing-feature error. *(Asserts the fallback the doc relies on is legitimate even though the contract is now ratified in the normal case; the dwell-based growth flourish is simply absent, not broken.)* **BLOCKING**
+
+**AC-ST06 — Out-of-range entity:transform scale is clamped, never applied raw (round-6 addition)**
+GIVEN ENTITY_A active, WHEN an inbound `entity:transform {scale}` arrives with `scale ≤ 1.0`, `scale ≥ 1.75`, or a negative/garbage value, THEN the occluder's applied mesh scale is clamped to the nearest bound of `[1.0, 1.75)` and the raw out-of-range value is never assigned directly to the mesh; GIVEN `scale = 1.4` (in-range), THEN the occluder scale is set to exactly 1.4, unmodified. **BLOCKING**
 
 ---
 
 ### Performance
 
 **AC-P01 — Frame rate at point budget ceiling (average + spike guard)**
-GIVEN scene at maximum density (BASE ≤ 1,500,000 pts) with ENTITY_SPIKE active and PROXIMITY_DISTURBED active, WHEN player navigates for 60 seconds on the project minimum-spec baseline (2020-era integrated GPU — Intel Iris Xe / AMD Vega 8 class, 8 GB RAM, 1080p; pinned in `.claude/docs/technical-preferences.md` Performance Budgets), THEN average FPS over 300 frames ≥ 55 (measured via `performance.now()` deltas) and no GPU out-of-memory error appears in browser console; AND over a second 300-frame window with **PROXIMITY_CORRUPTED additionally active** (worst-case jitter), no single frame exceeds 33 ms (the 1%-low / max-frame-time spike guard — an average alone masks the transient hitches that are most immersion-breaking in a horror context, and jitter/anomaly events are exactly transient spikes). **ADVISORY**
+GIVEN scene at maximum density (BASE ≤ 1,500,000 pts) with **ENTITY_GHOST active** (Type C — the
+worst-case entity layer, a full BASE-sized duplicate per Core Rule 2/AC-C04) and
+PROXIMITY_DISTURBED active, WHEN player navigates for 60 seconds on the project minimum-spec
+baseline (2020-era integrated GPU — Intel Iris Xe / AMD Vega 8 class, 8 GB RAM, 1080p; pinned in
+`.claude/docs/technical-preferences.md` Performance Budgets), THEN average FPS over 300 frames ≥ 55
+(measured via `performance.now()` deltas) and no GPU out-of-memory error appears in browser
+console; AND over a second 300-frame window with **PROXIMITY_CORRUPTED additionally active**
+(worst-case jitter), no single frame exceeds 33 ms (the 1%-low / max-frame-time spike guard — an
+average alone masks the transient hitches that are most immersion-breaking in a horror context,
+and jitter/anomaly events are exactly transient spikes). **Round-6 addition:** a third window
+repeats the same 60s pass with **ENTITY_SPIKE active instead** (Type B, Formula 1b's `N_spike` at
+default `A_spike`/`M_spike`) — expected to pass trivially given its point count is orders of
+magnitude below ENTITY_GHOST's, included so the smaller case isn't silently assumed. **ADVISORY**
 
 ## Open Questions
 
@@ -755,21 +916,13 @@ GIVEN scene at maximum density (BASE ≤ 1,500,000 pts) with ENTITY_SPIKE active
    added, density_budget_ceiling and base_density will need separate tuning profiles.
    *Owner: producer. Decide before Alpha milestone.*
 
-5. **`entity:transform {scale}` ratification (Entity System) — CROSS-SYSTEM** — the **growing-void
-   escalation tell** (a *dwell-based, sustained-proximity* beat — distinct from the Player-Fantasy
-   **Anchor moment** in §B, which is the *static recognition* of an already-present void and ships
-   fully at `scale = 1.0` with no dependency on this contract) requires Entity System to emit its
-   dwell-based `silhouette_scale` (its Formula 1) as a continuous event the renderer consumes to
-   re-scale the VOID_MASK occluder. Entity System (already Designed) currently emits only
-   `entity:spawn` / `entity:despawn`. This GDD records `entity:transform {scale}` as the provisional
-   inbound contract; Entity System's GDD must be amended (via `/design-system` or `/propagate-design-
-   change`) to emit it, and Orchestrator's relay table extended. Until then the occluder renders at a
-   static `scale = 1.0` (a valid shippable state — AC-ST05) and only the *escalation* flourish is
-   absent; the core Anchor moment is unaffected. **When the renderer applies an inbound `scale`, it
-   MUST clamp it to the contract's declared range `[1.0, 1.75)` — a ≤0 or absurd value from a buggy
-   emitter is rejected/clamped, not applied raw to the mesh.** *Owner: producer to coordinate the
-   Entity System amendment; not blocking THIS GDD's approval, but blocking the escalation tell's
-   implementation. Also tracked as an Open Cross-System Item in systems-index.md.*
+5. ~~**`entity:transform {scale}` ratification (Entity System) — CROSS-SYSTEM**~~ **RESOLVED,
+   round-6.** Entity System's Core Rule 6/AC-ES17b now emits `entity:transform {scale}` for real
+   (no longer provisional); this GDD's Interactions/Dependencies tables record it as ratified, and
+   AC-ST06 asserts the `[1.0, 1.75)` clamp on the applied value. The **growing-void escalation
+   tell** (dwell-based, sustained-proximity — distinct from the static-recognition Anchor moment in
+   §B, which ships fully at `scale = 1.0` regardless) can now render. No Open Cross-System Item
+   remains for this contract.
 
 6. **Draw-call merge policy — and its tension with the jitter/flicker shader cost** —
    technical-preferences.md requires minimizing `THREE.Points` objects / draw calls, but this GDD
@@ -791,19 +944,24 @@ GIVEN scene at maximum density (BASE ≤ 1,500,000 pts) with ENTITY_SPIKE active
      draw-call-minimization goal.
    Recommend deciding this in the Point Cloud ADR **against the Open Q#7 perf-prototype numbers**,
    not before. If (a) is chosen, AC-C05's "the floor `BufferGeometry`" wording must be rewritten to
-   count via a per-point surface-type attribute. *Owner: engine-programmer + performance-analyst.
-   Resolve in the Point Cloud ADR.*
+   count via a per-point surface-type attribute. **Round-6 addition:** whichever option is chosen
+   must also account for ENTITY_GHOST (a full BASE-sized duplicate, Type C worst case) and
+   ENTITY_SPIKE (Formula 1b, thousands of points, Type B) — neither was considered when this
+   question was first raised. *Owner: engine-programmer + performance-analyst. Resolve in the Point
+   Cloud ADR.*
 
 7. **AC-P01 performance-thesis prototype (min-spec) — BLOCKS ADR, parallel to Q#1** — AC-P01 (1.5M
-   attenuated `THREE.Points` + ENTITY_SPIKE + PROXIMITY_CORRUPTED jitter+flicker ≥ 55 avg FPS and
-   no frame > 33 ms on the min-spec baseline: 2020-era integrated GPU / Intel Iris Xe / AMD Vega 8,
-   8 GB RAM, 1080p) is the single highest-consequence claim in the GDD — it validates the entire
-   density budget (`density_budget_ceiling`), the tile-sampling design, the GPU jitter/flicker
-   shaders, and the Q#6 merge decision. Yet it is (correctly) ADVISORY as an AC and has no cited
-   benchmark. **Gate (round-3 fix): before the Point Cloud ADR is marked Accepted, prototype the
-   full worst-case scene on actual min-spec hardware** — merged 1.5M-point BASE buffer, ENTITY_SPIKE
-   active, jitter + flicker shaders compiled and running over the whole buffer (the Q#6-(a) worst
-   case), one active occluder, the 0.5 s CPU sampling pass live — and confirm the AC-P01 numbers
-   hold. If they don't, the density budget and/or the merge policy must change before implementation.
-   Same blocking status as Q#1's occluder prototype: **ADR must not be Accepted until this passes.**
-   *Owner: performance-analyst + engine-programmer.*
+   attenuated `THREE.Points` + PROXIMITY_CORRUPTED jitter+flicker ≥ 55 avg FPS and no frame > 33 ms
+   on the min-spec baseline: 2020-era integrated GPU / Intel Iris Xe / AMD Vega 8, 8 GB RAM, 1080p)
+   is the single highest-consequence claim in the GDD — it validates the entire density budget
+   (`density_budget_ceiling`), the tile-sampling design, the GPU jitter/flicker shaders, and the
+   Q#6 merge decision. Yet it is (correctly) ADVISORY as an AC and has no cited benchmark. **Gate
+   (round-3 fix, round-6 scope expansion): before the Point Cloud ADR is marked Accepted, prototype
+   the full worst-case scene on actual min-spec hardware** — merged 1.5M-point BASE buffer, jitter +
+   flicker shaders compiled and running over the whole buffer (the Q#6-(a) worst case), one active
+   occluder, the 0.5 s CPU sampling pass live, **and now also (round-6) both entity-layer worst
+   cases separately: a Type C ENTITY_GHOST full-buffer duplicate (the largest single addition) and
+   a Type B ENTITY_SPIKE cluster at Formula 1b's defaults** — and confirm the AC-P01 numbers hold
+   for both. If they don't, the density budget and/or the merge policy must change before
+   implementation. Same blocking status as Q#1's occluder prototype: **ADR must not be Accepted
+   until this passes.** *Owner: performance-analyst + engine-programmer.*

@@ -6,6 +6,119 @@ any machine.
 
 ---
 
+## 2026-07-26 (Point Cloud Renderer round 7) — MAJOR REVISION NEEDED; **5 of 8 blockers were introduced by round-6's own fixes**; NO fixes applied; pivoted to prototypes
+
+### Verdict
+Full-mode `/design-review design/gdd/point-cloud-renderer.md`, 5 specialists (game-designer,
+systems-designer, engine-programmer, performance-analyst, qa-lead) + creative-director synthesis.
+**MAJOR REVISION NEEDED — MAJOR-by-process, not by vision.** On the blocker set alone CD said it
+would be NEEDS REVISION; the escalation is for the meta-pattern below. 8 blockers + 8 recommended,
+**+1 found post-review** (see addendum) = 9. **Zero fixes applied this session — deliberate.**
+
+### The finding that drove the verdict
+**5 of the 8 blockers were introduced by round-6's own same-session fixes** — `f_cov`, Formula 1b's
+budget guard, the narrowed cost bound, AC-P01's third window, `toneMapped=false`. A 62% self-inflicted
+rate. Rounds 4 and 5 deferred to fresh sessions; round 6 patched in-session and produced this crop.
+CD called it a controlled experiment with a result and ruled: **no further same-session fixing on this
+document, no exceptions for "cheap" items** (both `toneMapped=false` and the Formula 1b guard looked
+cheap when written).
+
+Deeper diagnosis: **Formula 2 has been the primary blocker in 6 of 7 rounds.** Each round patches its
+baseline and each patch introduces a term whose data source doesn't exist yet (visible-set → layer set
+→ tile activity → scan coverage). `f_cov` is the fourth iteration of one failure. CD's prescription:
+rebuild Formula 2 **once** from its data sources — gate sampling on binary owning-node completion,
+delete the continuous-coverage fiction — rather than patch a fifth time.
+
+### The 8 blockers
+1. **`f_cov` has no data source** (3-way convergence: systems-designer, qa-lead, main session).
+   `scan:complete` is a node-level one-shot carrying a session-wide node-*count* fraction; nothing
+   computes a per-tile *spatial* area fraction. Mid-arc: 3 of 4 angles sealed into BASE, `f_cov` still
+   0 → whole room excluded from detection, then jumps to 1. AC-D02b's `f_cov = 0.5` is not
+   constructible through any documented interface.
+2. **Formula 1b's budget guard overshoots** — at `BASE_count = 1.4M` (legal) needs stride ≥14, knob
+   caps at 8 → combined 1.575M > ceiling. Fails above ~89% of ceiling.
+3. **Formula 2's cost bound states no tuning assumption** — two independent recomputations disagreed
+   (~2.12M vs ~764k). CD declined to arbitrate and ruled *the disagreement is the finding*. This bound
+   was the stated justification for round-6's range narrowing.
+4. **`toneMapped=false` asymmetry** — set on BASE only; under any non-`NoToneMapping` renderer BASE's
+   `#4ade80` and SPIKE/GHOST's identical `#4ade80` post-process differently, splitting the uniform
+   green (a blocker in rounds 1 and 3).
+5. **AC-P01 window (c) is backwards and unbarred** — `ENTITY_GHOST` is *excluded* from ρ_obs, so
+   **Type B is the only entity state that adds CPU sampling work**; the one window that stresses the
+   sampling pass is exempt from the 33 ms guard, and "expected to pass trivially" is a prediction.
+6. **`ghost_decimation_stride` is spawn-time-only**; AC-E04 never says whether ENTITY_GHOST rebuilds
+   with BASE on `floorplan:update`. Round-5 carry-over.
+7. **`flicker_rate` violates accessibility A-V3** (verified against `design/ux/accessibility-requirements.md`
+   line 19): A-V3 mandates ≤3 flashes/s + a reduced-distortion toggle, priority-flagged; legal max
+   40 rad/s = **6.37 Hz**. Default 18 rad/s = 2.86 Hz sits barely under. GDD never cites A-V3.
+8. **Level Design dependency undeclared** — §B's round-6 softening handed it the Anchor-moment pacing
+   promise; Level Design is absent from Dependencies *and* from systems-index entirely.
+
+### CD adjudications (2 specialist findings overturned)
+- game-designer's **confirmation-dwell blocker OVERRULED → recommended**: the scenario is unreachable
+  because a tile is only sampled if it intersects the camera frustum, so the void must be on-screen for
+  2 consecutive passes. Verified in-session against Formula 2's "Active detection tiles" clause.
+- engine-programmer's **Q#6 spatial-index blocker DOWNGRADED**: observation correct (option (a)
+  silently needs a tile→point index or ρ_obs collapses to O(scene)/pass) but Q#6 is already a deferred
+  ADR question.
+- **engine-programmer found NO DEFECT in the occluder recipe** — the most-patched technical claim held.
+- **qa-lead verified the AC count accurate at 33** — no stale-count slip.
+
+### Addendum blocker (+1, found AFTER the verdict, while building the prototype)
+**Formula 5 pins `#include <output_fragment>` — a chunk that does not exist in r171.** Renamed
+`opaque_fragment` in r152. Verified against installed `three@0.171.0`: `ShaderChunk/` has
+`opaque_fragment.glsl.js` and no `output_fragment.glsl.js`, and `ShaderLib/points.glsl.js` reads
+`outgoingLight = diffuseColor.rgb; #include <opaque_fragment>; #include <tonemapping_fragment>;
+#include <colorspace_fragment>`. An implementer following the GDD literally gets a `.replace()` that
+never matches → **flicker silently never renders, while AC-D08 still passes** (it asserts only the
+CPU-side `uFlickerAmp` uniform). The GDD's *reasoning* is confirmed correct — ordering is genuinely
+pre-tonemap; only the name is wrong. This raises round-6's self-inflicted count to **6 of 9**, since
+it also lives in Formula 5's round-6 injection-point fix. **First finding in 7 rounds produced by
+checking the pinned engine rather than by argument** — direct evidence for the prototype pivot.
+
+### User decision: GO PROTOTYPE
+Both ADR-blocking prototypes have been outstanding for 7 rounds, and Q#7's numbers would settle 5 of
+the disputed items (blockers 3, 5, 6, the Q#6 merge policy, the cost arithmetic) — 4 of which review
+cannot resolve by argument. Built both:
+
+- **`prototypes/q7-perf/`** — merged 1.5M-pt BASE (`frustumCulled=false`, Q#6 option (a) worst case),
+  jitter+flicker via one `onBeforeCompile` + `customProgramCacheKey`, depth-only occluder, ENTITY_GHOST
+  full duplicate, ENTITY_SPIKE at Formula 1b's 3,240 pts, **Formula 2 sampling live at worst-case
+  tuning** (`A_tile` 0.5, radius 15m — the gap performance-analyst flagged, where the validating gate
+  never exercised the claim). Deterministic scripted camera. 4 scenarios × 300 frames, incl. **a 4th
+  the GDD lacks: Type B + CORRUPTED**, testing blocker 5. Reports tile-index build time + memory (the
+  structure Q#6 (a) needs and the GDD never budgets) and total buffer bytes.
+- **`prototypes/q1-occluder/`** — numeric verification via offscreen `WebGLRenderTarget` +
+  `readRenderTargetPixels`, so it doubles as **AC-C08's evidence** and stays on the allowed side of the
+  "What NOT to Automate" carve-out (pixel *count*, not appearance). T1 cull, T2 invisibility, T3
+  360°+elevation sweep (catches angle-dependent sort failure), T4 near-plane overlap vs the GDD's
+  "solid black void" claim.
+
+**NEITHER HAS BEEN RUN.** Chrome extension not connected this session, and the WebGL-integration
+harness the GDD itself requires does not exist yet. Both serve cleanly under
+`npx vite --port 5178 --strictPort` at `/prototypes/q7-perf/` and `/prototypes/q1-occluder/`, and both
+pass `node --check`. **Caveat: this machine is not the min-spec baseline** (Iris Xe / Vega 8, 8 GB,
+1080p) — a pass here does not clear AC-P01's gate; it settles the *relative* questions.
+
+### Files touched
+`design/gdd/reviews/point-cloud-renderer-review-log.md` (round-7 entry + addendum),
+`design/gdd/systems-index.md` (PCR row → MAJOR REVISION NEEDED; **2 new Open Cross-System Items** —
+A-V3 flicker-ceiling violation, undeclared Level Design dependency), `prototypes/q7-perf/*`,
+`prototypes/q1-occluder/*`. **`design/gdd/point-cloud-renderer.md` deliberately UNTOUCHED.**
+
+### NEXT
+1. **Run both prototypes** — ideally on min-spec hardware for the real AC-P01 gate.
+2. **One dedicated Formula 2 session** (fresh context, nothing else in it): rebuild the detection model
+   from real data sources; decide the coverage question; delete the derived cost arithmetic in favour
+   of a normative per-pass budget (CD ruled that arithmetic ADR-work, not GDD-work — it has broken twice).
+3. **One consolidated mechanical pass** (fresh context, after 1 and 2): blockers 2, 4, 5, 6, 7, 8 + the
+   addendum + the 8 recommended. All mechanical — but per the ruling, *not* in the session that reviews them.
+4. Then round 8, once, with prototype numbers in hand. **CD's exit criteria:** blockers (a) fewer than
+   five, (b) none introduced by tracks 2–3's own edits, (c) none in Formula 2. If Formula 2 blocks again,
+   the honest conclusion is that CPU-side density anomaly detection is the wrong mechanism for this tell.
+
+---
+
 ## 2026-07-25 (Entity System rounds 2+3) — Entity System #9 re-reviewed twice; round-3 found ZERO structural issues; AC 50→65; round-4 re-review required
 
 **NOTE ON REPO STATE:** this entry covers **two** review rounds. Round 2 (earlier today, separate

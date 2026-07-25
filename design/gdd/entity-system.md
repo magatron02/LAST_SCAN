@@ -1,23 +1,39 @@
 # Entity System
 
-> **Status**: In Design (round-3 fresh-context `/design-review` 2026-07-25 → NEEDS REVISION;
-> 4 blockers + 7 recommended, full-mode with creative-director synthesis — all 4 blockers +
-> 6 recommended fixes addressed same session — **pending a third fresh-context re-review**.
+> **Status**: In Design (round-4 fresh-context `/design-review` 2026-07-25 → NEEDS REVISION;
+> 9 blockers + 12 recommended, full-mode with creative-director synthesis — all 9 blockers +
+> 8 recommended fixes addressed same session — **pending a fourth fresh-context re-review**.
 > See `design/gdd/reviews/entity-system-review-log.md`)
 > **Author**: magatron02 + agents
 > **Last Updated**: 2026-07-25
 > **Implements Pillar**: Perception Stripping (§8) · Horror from the familiar made wrong
-> **Creative Director Review (CD-GDD-ALIGN)**: senior synthesis completed as part of round-3
-> full-mode `/design-review` 2026-07-25 (verdict: NEEDS REVISION — **zero structural findings this
-> round**; every blocker was a config guard, a wording fix, or one missing formula. Blocker
-> character is narrowing across rounds: round-1 structural, round-2 structural, round-3 none.)
+> **Creative Director Review (CD-GDD-ALIGN)**: senior synthesis completed as part of round-4
+> full-mode `/design-review` 2026-07-25 (verdict: NEEDS REVISION. **Round-3's "zero structural
+> findings, narrowing to zero" claim was premature self-congratulation, not a real trend** — it
+> measured one round's sample and wrote it into this header as a pattern. Round-4 found two
+> BLOCKING acceptance criteria (AC-ES21, AC-ES10b) that failed against a *mathematically correct*
+> implementation of this GDD's own formulas, undetected across three prior rounds and this round's
+> first six specialists, plus a fourth instance of the "declared invariant with no load guard"
+> class the round-3 header explicitly warned about. Every fix is still local and cheap — the
+> design's shape has not changed — but the self-fix pattern's blind spot is now demonstrated, not
+> hypothetical.)
 >
-> ⚠️ **Standing caution for the next reviewer.** This is the third consecutive round where the
-> session that *found* the issues also *fixed* them. Two specific things have now slipped a manual
-> pass twice each: the **Coverage Validation table's completeness claim** (overclaimed in rounds 2
-> and 3) and the **"declared invariant with no load guard" class** (round-1 `dwell_half`, round-2
-> `proximity_tier_medium_max`, round-3 `I_min`/`I_max` + `SPEED_MAX`/`SPEED_BASE`). Verify both
-> classes explicitly rather than trusting the document's own claims about them.
+> ⚠️ **Standing caution for the next reviewer (revised round-4).** Four consecutive rounds where
+> the session that *found* the issues also *fixed* them. Three defect classes have now recurred
+> across rounds: the **Coverage Validation table's completeness claim** (rounds 2, 3, **and 4**),
+> the **"declared invariant with no load guard" class** (round-1 `dwell_half`, round-2
+> `proximity_tier_medium_max`, round-3 `I_min`/`I_max` + `SPEED_MAX`/`SPEED_BASE`, round-4
+> `SCALE_CAP` + `SPEED_BASE > 0` + `type_c_trail_delay`), and — **new in round-4** — **worked
+> examples asserted at a numeric tolerance tighter than their own transcription error**
+> (`AC-ES21`, `AC-ES10b`: both had a hand-rounded or mis-summed example number baked into a
+> `toBeCloseTo(_, high-precision)` assertion, so a *correct* implementation failed a *BLOCKING* AC).
+> None of six round-4 specialists caught the arithmetic class — they were all checking design and
+> structure, not re-deriving the numbers by hand. **A future round-5, if needed, should not repeat
+> the six-specialist adversarial format for this reason** (creative-director's process ruling,
+> round-4) — it should be a narrow, single-reviewer pass that re-derives every worked example by
+> hand, cross-checks every AC's asserted value and tolerance against that derivation, and
+> re-enumerates every declared inequality in every variable table against the guard-AC list from
+> scratch. Verify all three classes explicitly; do not trust this document's own claims about them.
 
 ## Overview
 
@@ -34,10 +50,12 @@ To the player, the Entity System is the game's only real antagonist, and it neve
 creature — only as an absence of data, an impossible density, or a room that shouldn't exist
 repeating itself. Its presence is read entirely through corruption of the instrument the player
 already trusts: proximity distorts the point cloud, density anomalies trigger error text, and —
-at the mechanical center of the horror — an active scan can capture it, turning the player's own
-most vulnerable action into the thing that dooms them. This system doesn't choose whether the
-ending is good or bad; it just decides, moment to moment, how close the wrongness is allowed to
-get.
+at the mechanical center of the horror, **when Type C is the active manifestation** — an active
+scan can capture it, turning the player's own most vulnerable action into the thing that dooms
+them. This system doesn't choose whether the ending is good or bad; it just decides, moment to
+moment, how close the wrongness is allowed to get. *(round-4 re-review: this clause previously
+read as the entity's general behavior; it describes Rule 9, which is Type-C-specific by design —
+see Rule 9's own callout box for why, and for the accepted asymmetry that follows from it.)*
 
 ## Player Fantasy
 
@@ -114,7 +132,17 @@ already too late to matter, whether that's Type B or nothing at all.
    re-review: this was previously qualitative prose only, which forced the implementer to invent
    the function and let a degenerate step-function pass AC-ES10/ES11 as they were then written).
    Room weighting is re-evaluated at every retarget against the player's position *at that moment*
-   — including when `floorplan:reveal` arrived mid-manifestation (AC-ES39, AC-ES60). **Type
+   — including when `floorplan:reveal` arrived mid-manifestation (AC-ES39, AC-ES60).
+   **Eligible-room set (NEW round-4 — was previously undefined).** Formula 4's Σ over "eligible
+   rooms" is exactly the room set carried by the **most recently received `floorplan:update`**
+   (see Dependencies) — never a set Entity System tracks incrementally from individual
+   `floorplan:reveal` events. This falls out of Floor Plan's own contract, not a new mechanic: per
+   Floor Plan's GDD, every `floorplan:update` always carries the **full current room set** (not a
+   delta), so Entity System only needs its latest-received copy. `STANDARD` rooms are present from
+   the first `floorplan:update` at session start; a revealed `ANOMALY` room's AABB appears in the
+   next `floorplan:update` that follows its `floorplan:reveal`. This is what makes "only the
+   starting room revealed" (Edge Cases) a genuine degenerate case rather than the normal one — a
+   typical property's first `floorplan:update` already contains multiple `STANDARD` rooms. **Type
    selection**
    at each spawn is drawn from the injectable seeded RNG (see Acceptance Criteria → testability)
    using a **placeholder uniform 1/3 distribution** over {A, B, C} — a documented Vertical-Slice
@@ -144,6 +172,20 @@ already too late to matter, whether that's Type B or nothing at all.
    cluster Type B against the radius edge). This discrete hold-then-step motion is the *mechanic*,
    not merely its presentation: it is what makes re-scanning the same spot a detection tell (the
    player compares two held states — see Visual/Audio Requirements).
+
+   **Re-roll bound (NEW round-4).** The re-roll is capped at **32 attempts** per step. Under any
+   legally-configured `entity_influence_radius`/`type_b_step_distance` pair (the former is always
+   several multiples of the latter at both knobs' documented safe ranges), the geometric odds of
+   exhausting 32 draws are negligible and this cap is never observed in practice. It exists purely
+   as a defensive fallback against *misconfiguration* — `entity_influence_radius` is a registered,
+   reused radius owned outside this document, so this GDD cannot load-guard its relationship to
+   `type_b_step_distance` the same way it guards its own knobs (same reasoning as the
+   deliberately-unguarded `SPEED_BASE < MOVE_SPEED < SPEED_MAX` cross-system invariant — see
+   Tuning Knobs). If a config were ever misconfigured such that no direction can satisfy the
+   radius, an unbounded re-roll would hang rather than degrade; the 32nd failed attempt instead
+   clamps to the boundary along that final attempt's direction — a one-time, misconfiguration-only
+   exception to "never clamped," logged as a config warning, not a designed part of Type B's normal
+   motion.
 
 8. **Type C behavior — trailing pursuit.** Type C maintains its own position-history ring buffer
    sampling `player:position` (mirrors Floor Plan's own dollhouse-desync ring buffer). Its
@@ -195,6 +237,22 @@ already too late to matter, whether that's Type B or nothing at all.
    >
    > Recorded here so the asymmetry reads as a design call rather than an oversight, and so a
    > future reviewer re-deriving it finds the answer instead of re-opening it.
+   >
+   > **Round-4 additions (creative-director, on two further specialist findings — both ruled
+   > without reopening the core decision above):**
+   > 1. *(`game-designer`)* This rule is the sharpest expression of a broader point: Types A and B
+   >    carry no mechanical stakes of their own — they are passive tells, not active jeopardy.
+   >    Ruled **not blocking**: dread-baseline manifestations without active jeopardy are
+   >    legitimate content under the Perception Stripping pillar, not a design defect. The Overview
+   >    section's wording has been corrected to stop implying otherwise (see Overview).
+   > 2. *(`ux-designer`)* The ruling above was framed around first-session duress; it never
+   >    addressed **cross-session/veteran erosion** — a player who has pattern-matched the speed
+   >    tell across multiple playthroughs gets a higher-confidence read than A/B's tells ever offer.
+   >    **Extending, not reopening:** the Player Fantasy text only ever promised ambiguity on
+   >    first read ("you never learn which one you're facing **until it's already close**" is a
+   >    per-encounter claim, not a per-playthrough one), so veteran pattern-matching sits outside
+   >    what this document set out to protect. Accepted for repeat sessions too, same reasoning as
+   >    round-3's ruling.
 
 10. **Movement Violation — inherited, not resolved here.** Entity's only obligation for Movement
     Violation is accurate, real-time `entity:proximity`. Win/Lose (#10, Designed) is responsible
@@ -232,7 +290,7 @@ place.
 | Point Cloud Renderer | out | `entity:spawn {type, position}`, `entity:despawn {}` — activates/repositions the matching visual layer (VOID_MASK / ENTITY_SPIKE / ENTITY_GHOST) |
 | Point Cloud Renderer | out | `entity:transform {scale}` — continuous while Type A is active; carries Formula 1's `silhouette_scale` so the renderer re-scales the VOID_MASK occluder in place (the growing-void tell). Throttled to perceptible deltas (`entity_transform_min_delta`, new knob). Renderer records this inbound (Point Cloud Renderer Interactions ✅); ratified here (was its provisional Open Cross-System Item) |
 | Point Cloud Renderer | out | `entity:position {position}` — latest-value, every tick while Type B or Type C is active; keeps `ENTITY_SPIKE`/`ENTITY_GHOST` positioned correctly after the initial spawn frame (Rule 11, NEW this revision) |
-| Floor Plan | in | Room AABBs + door graph (via Orchestrator) for placement/pathing; `floorplan:reveal` to begin favoring the anomaly room; shares `session_escalation`'s registered formula + config for local `e` computation |
+| Floor Plan | in | `floorplan:update {rooms:[{id,aabb,surfaces}]}` (via Orchestrator) — always the full current room set, per Floor Plan's own contract — is Formula 4's actual "eligible rooms" source (NEW round-4 citation; behavior unchanged, previously described only generically); `floorplan:reveal` to begin favoring the anomaly room; shares `session_escalation`'s registered formula + config for local `e` computation |
 | FPS Movement | in | `player:position {x,y,z}` — distance computation (all types) and Type C's trailing-position ring buffer |
 | Scan Mechanic | in | `movement:scan_triggered` / `movement:scan_released` — bounds the "scan active" window for Rule 9 |
 | Scan Node | in | `scan:coverage` (via Orchestrator) — one of the two inputs to locally-computed `e` |
@@ -311,10 +369,13 @@ The `type_c_speed` formula is defined as:
 straight line even at NEAR range; above it, Type C can run the player down once it enters NEAR
 (matching FPS Movement's own tuning note verbatim).
 
-**Example:** e=0.3 (early): `0.9 + 1.3×0.027 = 0.935 m/s` — trivially outwalked. e=0.7
-(mid-late): `0.9 + 1.3×0.343 = 1.346 m/s` — still under `MOVE_SPEED`, tension rising but not yet
-lethal. e=0.95 (near-max): `0.9 + 1.3×0.857 = 2.014 m/s` — exceeds `MOVE_SPEED` by 26%, escape
-from NEAR/ADJACENT is no longer guaranteed.
+**Example:** e=0.3 (early): `0.9 + 1.3×0.027 = 0.9351 m/s` — trivially outwalked. e=0.7
+(mid-late): `0.9 + 1.3×0.343 = 1.3459 m/s` — still under `MOVE_SPEED`, tension rising but not yet
+lethal. e=0.95 (near-max): `0.9 + 1.3×0.857375 = 2.0146 m/s` — exceeds `MOVE_SPEED` by 26%, escape
+from NEAR/ADJACENT is no longer guaranteed. *(round-4 re-review: the e=0.95 figure was previously
+misprinted as `2.014` from a truncated intermediate — corrected here and in AC-ES21, which had
+asserted these three values at a tolerance tighter than their own rounding error and would have
+failed a mathematically correct implementation.)*
 
 **Cubic, matching `desync_delay`'s exact precedent** (`e³`, not `e²` or linear). This is the
 single formula capable of fully revoking the player's baseline escape option ("just walk away")
@@ -399,13 +460,18 @@ not a prose aspiration.
 
 **Example** (the exact configuration AC-ES10 tests — 3 rooms at 2m / 8m / 15m, defaults
 `k=1.5`, `ε=0.5`, anomaly not yet revealed):
-`w = (2.5)^−1.5, (8.5)^−1.5, (15.5)^−1.5 = 0.25299, 0.04035, 0.01639`; `Σw = 0.31073`
-→ `P = 0.814, 0.130, 0.053`. The nearest room clears AC-ES10's `1/3 + 0.15 = 0.4833` threshold
-comfortably and exceeds the farthest room by ~15×.
+`w = (2.5)^−1.5, (8.5)^−1.5, (15.5)^−1.5 = 0.25299, 0.04035, 0.01639`; `Σw = 0.30973`
+→ `P = 0.817, 0.130, 0.053`. The nearest room clears AC-ES10's `1/3 + 0.15 = 0.4833` threshold
+comfortably and exceeds the farthest room by ~15×. *(round-4 re-review: `Σw` and the nearest
+room's `P` were previously misprinted as `0.31073`/`0.814` — the document's own listed `w` values
+actually sum to `0.30973`, giving `P₁ ≈ 0.817`. AC-ES10b asserted the old, wrong figure at a
+tolerance that fails against a mathematically correct implementation — corrected there too.)*
 
 **Anomaly example** (anomaly room revealed, sitting at `P_base = 0.13`): at `e=0.5` →
-`0.13 + 0.87×0.5 = 0.565`; at `e=0.8` → `0.826`; at `e=0.99` → `0.9987`. Monotonic, and clears
-AC-ES11's `>0.98 at e=0.99` bar.
+`0.13 + 0.87×0.5 = 0.565`; at `e=0.8` → `0.826`; at `e=0.99` → `0.13 + 0.87×0.99 = 0.9913`.
+Monotonic, and clears AC-ES11's `>0.98 at e=0.99` bar. *(round-4 re-review: the `e=0.99` figure
+was previously misprinted as `0.9987` — a plain multiplication error; corrected here. No AC
+depended on the exact figure, only the `>0.98` threshold, so no AC was affected.)*
 
 **Why inverse-power, not softmax or a step:** an inverse-power law has no characteristic distance
 scale — it degrades smoothly whether the property's rooms are 3m or 30m apart, so `k` doesn't need
@@ -468,6 +534,15 @@ Formula 3's "why linear" note already argues against.
   part of the despawn transition — there is no "proximity to nothing." A subscriber that only
   reads the cached latest-value always gets a coherent answer.
 
+- **Before the session's very first `entity:proximity` event (NEW round-4 — was previously only
+  covered post-despawn, above).** `DORMANT` at session start (AC-ES32) means no `entity:spawn` or
+  `entity:proximity` has fired yet — but any subscriber reading a cached latest-value (e.g.
+  UI/HUD's proximity sensor bar) needs a defined value for that gap, which could last up to
+  `retarget_interval(0) = 90s` (AC-ES38). The implicit default is `FAR`, same as the despawn case
+  above — no new state, just stating it applies before the first spawn too, since `ui-hud.md`'s
+  own ACs already assume "cached tier is FAR" as a bare precondition without this document ever
+  having established where that default comes from.
+
 - **If `session:end` arrives while a manifestation is active**: no further retargets,
   dwell-decay, or drift updates occur. The last-emitted `entity:proximity` value stands frozen
   (Orchestrator's latest-value caching already covers late subscribers; no new logic needed
@@ -485,6 +560,19 @@ Formula 3's "why linear" note already argues against.
   event streams and different RNG sequences from the same seed — exactly the class of divergence
   AC-ES52's fixed draw order exists to prevent. (AC-ES58.)
 
+- **If Type B is active and its `type_b_step_interval` elapses on the SAME tick as its
+  `retarget_interval` elapses (NEW round-4 — previously unspecified):** **the retarget wins.** The
+  manifestation despawns per Rule 5; the pending Type B step is discarded **without** drawing from
+  the RNG — the outgoing manifestation's held position is moot the instant it despawns, so stepping
+  it first would be observably pointless *and* would consume an RNG draw a same-tick-despawned
+  implementation shouldn't need. This is not a rare edge case under default tuning:
+  `type_b_step_interval` (1.0s) evenly divides both `I_min` (20.0s) and `I_max` (90.0s), so this
+  collision recurs on a predictable cadence throughout any Type B manifestation, not just
+  occasionally. Left unordered, a step-first implementation and a retarget-first implementation
+  would consume different RNG draw counts across a session, desynchronising the seeded sequence —
+  the exact divergence class AC-ES52/AC-ES58 exist to prevent, now closed for this pairing too.
+  (AC-ES63.)
+
 - **If no room besides the player's starting room is yet revealed** (extreme early session): the
   starting room is always a valid spawn-selection candidate — spawn selection is never left with
   zero eligible rooms.
@@ -497,7 +585,7 @@ Formula 3's "why linear" note already argues against.
 |---|---|---|
 | Orchestrator | Event bus (hard) | Receives: `session:tick`, `scan:coverage`, `player:position`, `floorplan:reveal`, `movement:scan_triggered`/`released`, `session:end`. Emits: see Downstream |
 | FPS Movement | Hard (data consumer) | `player:position {x,y,z}` — required for all distance/tier computation and Type C's trailing-position ring buffer |
-| Floor Plan | Hard (data consumer) | Room AABBs + door graph (via Orchestrator) for spawn placement; `floorplan:reveal` for anomaly-room weighting; shares the registered `session_escalation` formula + tuning config for local `e` computation |
+| Floor Plan | Hard (data consumer) | `floorplan:update` (via Orchestrator, always full current room set — Formula 4's actual eligible-room source, Rule 5) for spawn placement; `floorplan:reveal` for anomaly-room weighting; shares the registered `session_escalation` formula + tuning config for local `e` computation |
 | Scan Node | Hard (data consumer) | `scan:coverage` (via Orchestrator) — one of the two inputs to locally-computed `e` |
 | Scan Mechanic | Soft (event consumer) | `movement:scan_triggered`/`movement:scan_released` bound the "scan active" window for Rule 9's aggression multiplier. Without it, Entity still functions — the multiplier simply never applies. |
 
@@ -550,13 +638,20 @@ Downstream). It does not call any system directly; all flow is via the Orchestra
 
 **Interaction notes:**
 
-> **Config-load guard policy (clarified round-3).** Three invariants in this GDD are enforced by
-> rejecting the config at load: `proximity_tier_medium_max > 8.0` (AC-ES48), `dwell_half > 0`
-> (AC-ES49), and — new this revision — the two *ordering* invariants below (AC-ES55, AC-ES56),
-> plus Formula 4's `k > 0` and `ε > 0` (AC-ES57). The common thread is that each is a **declared
-> invariant in a variable table whose violation is silent** — it produces no NaN, no crash, just
-> wrong behaviour. Safe *ranges* elsewhere in this table are **advisory only** and are deliberately
-> not guarded; do not read the absence of a guard on a safe range as an oversight.
+> **Config-load guard policy (clarified round-3, extended round-4).** Invariants in this GDD
+> enforced by rejecting the config at load: `proximity_tier_medium_max > 8.0` (AC-ES48),
+> `dwell_half > 0` (AC-ES49), `0 < I_min < I_max` (AC-ES55), `SPEED_MAX > SPEED_BASE` (AC-ES56),
+> Formula 4's `k > 0` and `ε > 0` (AC-ES57), and — **new round-4** — `SCALE_CAP > 1.0` (AC-ES61),
+> `SPEED_BASE > 0` (AC-ES62), and `type_c_trail_delay > 0` (AC-ES65). The common thread is that
+> each is a **declared invariant in a variable table whose violation is silent** — it produces no
+> NaN, no crash, just wrong behaviour. Safe *ranges* elsewhere in this table are **advisory only**
+> and are deliberately not guarded; do not read the absence of a guard on a safe range as an
+> oversight. **Round-4 note:** `SCALE_CAP > 1.0` and `SPEED_BASE > 0` were both declared in their
+> own Formula's variable table exactly like every already-guarded invariant, and both were missed
+> for a full round despite round-3's header explicitly warning reviewers to check this class.
+> `SPEED_MAX > SPEED_BASE` (an *ordering* guard, AC-ES56) does not transitively imply `SPEED_BASE
+> > 0` (a *sign* guard) — a config with `SPEED_BASE = -1.0, SPEED_MAX = 2.2` passes AC-ES56 while
+> still producing a literal negative Type C movement speed at `e=0`.
 
 - **`SPEED_MAX > SPEED_BASE` is validated at config load — a config violating it is rejected**
   (AC-ES56). NEW round-3. Formula 2's variable table has always declared this ordering, but
@@ -591,6 +686,25 @@ Downstream). It does not call any system directly; all flow is via the Orchestra
   `dwell + dwell_half` zero the instant Type A spawns with the player already NEAR/ADJACENT
   (`dwell = 0` at that moment). Same pattern as `proximity_tier_medium_max` above: **validated at
   config load — a config with `dwell_half ≤ 0` is rejected** (AC-ES49).
+- **`SCALE_CAP > 1.0` is validated at config load — a config violating it is rejected** (AC-ES61,
+  NEW round-4). Formula 1's variable table has always declared this, but nothing enforced it —
+  the 4th instance of this document's recurring "declared invariant, no load guard" defect, caught
+  independently by two round-4 specialists rather than by self-review. At `SCALE_CAP = 1.0`,
+  `silhouette_scale` is a constant `1.0` — Type A's growth tell becomes a permanent no-op. At
+  `SCALE_CAP < 1.0` it's worse: `(SCALE_CAP − 1.0)` goes negative and `silhouette_scale` *shrinks*
+  as dwell accrues, silently inverting the tell and violating the doc's own stated `[1.0,
+  SCALE_CAP)` output range — no NaN, no crash, just the void getting smaller the longer the
+  player watches it.
+- **`SPEED_BASE > 0` is validated at config load — a config violating it is rejected** (AC-ES62,
+  NEW round-4). Distinct from the `SPEED_MAX > SPEED_BASE` ordering guard (AC-ES56): a negative
+  `SPEED_BASE` with a larger `SPEED_MAX` passes AC-ES56 but produces `type_c_speed(e=0) < 0` — a
+  literal negative movement speed, not merely a pacing inversion. The ordering guard does not
+  transitively protect against this; both are now checked independently at load.
+- **`type_c_trail_delay > 0` is validated at config load — a config violating it is rejected**
+  (AC-ES65, NEW round-4). Not a live singularity at the documented safe-range floor (2.0s, twenty
+  times `dt_cap`), but nothing previously rejected `0` or a negative value. At `0`, Type C's trail
+  target collapses to the player's live position, defeating "arrives where they were, never where
+  they are" (Rule 8); negative is nonsensical for a ring-buffer retention window.
 - `scanning_aggression_multiplier` stacks *multiplicatively* with `type_c_speed(e)` — at high
   `e`, a scanning player facing Type C could see combined speeds well past `SPEED_MAX` alone.
   **At default tuning** the worst case is `SPEED_MAX × scanning_aggression_multiplier` =
@@ -603,6 +717,14 @@ Downstream). It does not call any system directly; all flow is via the Orchestra
   combined product by hand before shipping any tuning pass that raises both knobs. No load guard
   (advisory ranges, per the guard policy above). Tune the multiplier down if late-game scanning
   near the entity proves unavoidable rather than merely risky.
+- `entity_influence_radius` (5.0m, registered elsewhere — reused, not owned here) **must stay
+  meaningfully larger than `type_b_step_distance`** (0.30m default) — Rule 7's boundary re-roll
+  needs room to find a valid direction. Both knobs' documented safe ranges (radius fixed at 5.0m;
+  step 0.1–0.6m) keep this comfortably true, and it is **deliberately NOT load-guarded** here for
+  the same reason as `SPEED_BASE < MOVE_SPEED < SPEED_MAX` above: the radius is a foreign-registry
+  constant, and coupling Entity's config loader to it isn't worth it for an invariant this document
+  has now given a bounded, non-hanging fallback for (Rule 7's 32-attempt re-roll cap, NEW round-4)
+  rather than an unguarded risk of an infinite loop.
 - `dwell_half` and `I_min` interact: if `I_min` (minimum retarget interval) is shorter than the
   time Type A needs to grow noticeably (`dwell_half`), late-game manifestations may retarget away
   before the growth tell pays off. **At defaults both are 20.0s — equal, not "comfortably
@@ -658,6 +780,14 @@ cross-referenced back here):**
 >   carry it.
 >
 > Neither A's nor B's audio is required for any acceptance criterion in this document.
+>
+> **Round-4 correction:** the paragraph above originally implied Type C's "clear, intensifying,
+> gated drone" was its general signature — but the only direction actually written for Type C was
+> the Scanning Aggression bullet below, scoped strictly to the locked-scan-window gate (Rule 9).
+> Outside that window — i.e. during most of Type C's continuous Rule 8 pursuit — no audio
+> direction previously existed, leaving Type C plausibly as silent as A/B's *declared* near-silence
+> the rest of the time, contradicting this box's own headline claim. **Type C — pursuit audio**
+> (new bullet below) closes that gap.
 
 - **Type A — presence audio (NEW this revision).** As `silhouette_scale` grows, the ambient
   soundscape near it should lose definition rather than gain volume — a subtle low-end
@@ -670,6 +800,13 @@ cross-referenced back here):**
   near-subliminal material-wrongness texture (a resonance a little too clean to be furniture),
   discoverable only on close listening — silent, specifically, during the step itself, so the
   step stays a purely visual/re-scan tell.
+- **Type C — pursuit audio (NEW round-4 — closes the gap above).** Outside a locked scan, Type C's
+  continuous Rule 8 pursuit should carry a low, sparse presence cue that scales with proximity tier
+  alone (not `type_c_speed(e)` — that driver is reserved for the scanning-aggression gate below) —
+  a faint, irregular pulse or breath-like texture that thickens from MEDIUM through ADJACENT. This
+  is the "clear... drone" the perceptibility-asymmetry note above claims as Type C's baseline
+  signature; without it, that claim was true only during locked scans. Deliberately understated
+  relative to the scanning-aggression drone — it's ambient menace, not the vulnerable-window spike.
 - **Manifestation change (Rule 5 despawn/respawn)** — should read as an *instrument failure*
   (static burst / brief dropout), never a musical sting, consistent with the "corruption of the
   instrument" fantasy and the no-jump-scare pillar. ⚠ Because manifestation changes can fire as
@@ -678,16 +815,27 @@ cross-referenced back here):**
   rather than a metronome — flagged for that GDD, not solved here. Note Entity System never
   broadcasts `e` itself (Rule 4: computed locally only); the Audio System would need to replicate
   the same local-computation pattern (same registered `session_escalation` formula + shared
-  `session:tick`/`scan:coverage` inputs) rather than expect a ready-made event.
+  `session:tick`/`scan:coverage` inputs) rather than expect a ready-made event. **Same-tick
+  collision with Rule 9's gate-off (NEW round-4):** a retarget can despawn Type C on the identical
+  tick its scanning-aggression gate turns off (e.g. mid-locked-scan at ADJACENT). Both directions
+  are independently "abrupt, no tail" — when both fire the same tick, the despawn's instrument-
+  failure cue **subsumes** the gate-off cut; do not layer both, since two simultaneous abrupt audio
+  events read as a glitch rather than one coherent corruption beat.
 - **Scanning aggression (Rule 9, Type C)** — a drone that intensifies during the vulnerable
   window. Note Rule 9's multiplier is a **boolean gate** (on/off), *not* a scalar, so it cannot
   itself be the *continuous* driver: the Audio System should drive intensity from Type C's
   `type_c_speed(e)`, gated *on* by Rule 9's active state (naming the exact mapping is the Audio
-  System GDD's call). Because the gate re-evaluates every tick with no latching (AC-ES29) — it
+  System GDD's call). **Gate-on attack (NEW round-4 — was previously unspecified):** the onset
+  should ramp over a short attack, not snap to full intensity — an instant full-volume onset the
+  moment a scan locks at NEAR/ADJACENT risks reading as a sting, the same pillar-sensitive territory
+  this document treats carefully elsewhere (e.g. the loop-teleport-near-Type-A edge case). Because
+  the gate re-evaluates every tick with no latching (AC-ES29) — it
   can flip off on the identical tick as a NEAR→MEDIUM de-escalation — gate-off should be an
   **abrupt cut, matching the despawn edge case's own precedent** ("abrupt cessation reads as
   entity withdrawing, the correct horror signal"), not a release tail; a lingering tail on a
-  same-tick cutoff would read as a mix glitch rather than diegetic corruption.
+  same-tick cutoff would read as a mix glitch rather than diegetic corruption. Asymmetric
+  attack/release (ramped on, cut off) is intentional — matches Rule 9's own framing as the entity
+  *closing in*, not a switch flipping both ways.
 
 Both directions are diegetic-compatible extensions of the corruption language Point Cloud
 Renderer already establishes visually (jitter, colour flicker) — audio corrupts the same
@@ -737,7 +885,7 @@ GDD §11 sidebar proximity bar). Entity System owns the data; UI owns the pixels
 
 ## Acceptance Criteria
 
-65 criteria: 56 BLOCKING (Logic) + 9 BLOCKING (Integration). No ADVISORY — this system has no
+71 criteria (round-4: 65→71): 61 BLOCKING (Logic) + 10 BLOCKING (Integration). No ADVISORY — this system has no
 dedicated performance budget of its own (render/point-cloud cost is Point Cloud Renderer's and
 the render loop's concern) and produces no pixels directly; its behavior is fully computable and
 assertable in isolation.
@@ -866,12 +1014,16 @@ rooms. Deterministic under the fixed seed — re-running yields the identical se
 nearest, uniform among the rest" implementation satisfied identically to a correct one. Asserting
 against Formula 4's actual per-room probabilities over ≥5 rooms is what distinguishes them.)*
 
-**AC-ES10b — Formula 4 worked example reproduces the GDD's own stated probabilities (NEW this revision)**
+**AC-ES10b — Formula 4 worked example reproduces the GDD's own stated probabilities (NEW round-3, corrected round-4)**
 GIVEN the 3-room reference configuration from Formula 4's worked example (2m / 8m / 15m,
 `k = 1.5`, `ε = 0.5`, anomaly unrevealed), WHEN `P_base` is computed for each room, THEN the
-results are `toBeCloseTo(0.814, 3)`, `toBeCloseTo(0.130, 3)`, and `toBeCloseTo(0.053, 3)`, and
+results are `toBeCloseTo(0.817, 3)`, `toBeCloseTo(0.130, 3)`, and `toBeCloseTo(0.053, 3)`, and
 they sum to `toBeCloseTo(1.0, 5)` — a pure-math check on the formula independent of any RNG.
-**BLOCKING (Logic)**
+**BLOCKING (Logic)** *(round-4 re-review: the nearest room's expected value was previously
+`0.814`, propagated from the Example paragraph's `Σw = 0.31073` typo — the GDD's own listed `w`
+values actually sum to `0.30973`, giving `P₁ ≈ 0.8168`, not `0.814`. `0.814` fails this AC's
+`±0.0005` tolerance against a correct implementation. Corrected to `0.817`; the other two rooms'
+values were already within tolerance and are unchanged.)*
 
 **AC-ES11 — Anomaly room favoring increases after floorplan:reveal, reaching certainty as e approaches 1 (rewritten this revision)**
 GIVEN a fixed RNG seed and `floorplan:reveal` fired for the anomaly room, WHEN `e` is sampled at
@@ -958,6 +1110,17 @@ version only asserted "never exceeds radius," which a clamping implementation sa
 identically to a re-rolling one — rewritten to assert the distinguishing behavior Rule 7 actually
 specifies)*
 
+**AC-ES18b — Containment radius stays anchored to spawn position across multiple steps, not current position (NEW round-4)**
+GIVEN Type B has taken several steps such that its current position is offset from its original
+spawn position `P`, and a scripted RNG for the next step's direction would land within
+`entity_influence_radius` of the *current* position but outside `entity_influence_radius` of the
+*spawn* position `P`, WHEN that step is processed, THEN the step is re-rolled (rejected) — proving
+containment is checked against Rule 7's stated "of its spawn position," not the entity's current
+position. **BLOCKING (Logic)** *(round-4: AC-ES18 alone only exercises step 1, where spawn and
+current position are identical and can't distinguish the two anchoring interpretations; a
+current-position-anchored "drifting walk" implementation would pass AC-ES18 identically to a
+correct spawn-anchored one.)*
+
 **AC-ES19 — Type B moves in discrete steps, not continuously, by the exact seeded displacement**
 GIVEN Type B is active with default knobs (`type_b_step_distance = 0.30m`,
 `type_b_step_interval = 1.0s`), a mockable clock, and a fixed RNG seed, WHEN the clock advances,
@@ -986,9 +1149,14 @@ Rule 9's scanning-aggression window. **BLOCKING (Logic)**
 
 **AC-ES21 — Type C pursuit speed matches Formula 2 at worked-example e values**
 GIVEN `e` values of 0.3, 0.7, and 0.95 with defaults (`SPEED_BASE=0.9`, `SPEED_MAX=2.2`), WHEN
-`type_c_speed(e)` is computed for each, THEN the results are `toBeCloseTo(0.935, 5)`,
-`toBeCloseTo(1.346, 5)`, and `toBeCloseTo(2.014, 5)` respectively, matching the GDD's own worked
-examples. **BLOCKING (Logic)**
+`type_c_speed(e)` is computed for each, THEN the results are `toBeCloseTo(0.9351, 5)`,
+`toBeCloseTo(1.3459, 5)`, and `toBeCloseTo(2.0145875, 5)` respectively, matching the GDD's own
+worked examples. **BLOCKING (Logic)** *(round-4 re-review: the three expected values were
+previously printed at 3-decimal rounded precision — `0.935`/`1.346`/`2.014` — while asserted at
+`toBeCloseTo(_, 5)`, a tolerance roughly 20–120× tighter than that rounding error. A
+mathematically correct implementation of the formula failed this AC as originally written.
+Corrected to the exact values; the `e=0.95` case was also mis-rounded in the prose it was
+transcribed from — see Formula 2's Example, also corrected this round.)*
 
 **AC-ES22 — Type C speed can exceed MOVE_SPEED above the e ≈ 0.815 crossover**
 GIVEN `e = 0.9` (above the ≈0.815 crossover), WHEN `type_c_speed(e)` is computed, THEN the
@@ -1216,6 +1384,32 @@ order was previously unspecified, so two correct-looking implementations produce
 streams and different RNG sequences from the same seed — the divergence class AC-ES52's fixed draw
 order exists to prevent.)*
 
+**AC-ES63 — Type B step and an elapsed retarget on the same tick: retarget wins, step's RNG draw not consumed (NEW round-4)**
+GIVEN Type B is active, its `type_b_step_interval` elapses on exactly the same tick that its
+`retarget_interval(e)` also elapses, and a scripted RNG mock is installed, WHEN that tick is
+processed, THEN `entity:despawn` is emitted for Type B, **no** step-direction draw is recorded by
+the RNG mock for that tick, and Type B's position at the moment of despawn is unchanged from
+before the tick (no step applied). A step-first ordering would instead move Type B, consume a
+direction draw, and only then despawn it — desynchronising the seeded sequence versus a
+retarget-first implementation. **BLOCKING (Integration)** *(round-4: identified as unspecified and,
+under default tuning, routine rather than rare — `type_b_step_interval` evenly divides both
+`I_min` and `I_max` — the same divergence class AC-ES52/AC-ES58 exist to prevent, for a pairing
+those two ACs don't cover.)*
+
+**AC-ES64 — Type B boundary re-roll is capped at 32 attempts, then clamps as a misconfiguration fallback (NEW round-4)**
+GIVEN a scripted/mocked RNG whose first 32 draws for a given step all land outside
+`entity_influence_radius` (simulating a misconfiguration where the radius is not meaningfully
+larger than `type_b_step_distance`), WHEN that step is processed, THEN the RNG mock is called
+**exactly 32 times** for that step (not unboundedly), a config warning is recorded, and Type B's
+resulting position is clamped to the radius boundary along the 32nd draw's direction rather than
+the loop continuing indefinitely; GIVEN a normally-configured RNG (any draw within the first 32
+lands inside the radius, the expected case at documented safe ranges), THEN the cap is never
+reached and behaviour is identical to AC-ES18 (re-roll, no clamp). **BLOCKING (Logic)** *(round-4:
+closes a hang risk ai-programmer identified — an unbounded re-roll against a misconfigured
+`entity_influence_radius` would never terminate. The cap and clamp-fallback are a defensive
+last resort, not part of Type B's normal motion; AC-ES18 remains the AC for normal-case
+containment.)*
+
 **AC-ES46 — Degenerate room selection: only the starting room revealed still yields a valid pick**
 GIVEN only the player's starting room is currently revealed, WHEN room selection runs for a
 retarget, THEN the starting room is selected without error — spawn selection is never left with
@@ -1256,14 +1450,41 @@ loaded, THEN load is rejected — `ε = 0` reintroduces a division-by-zero the i
 stands at a room's AABB center (`d_i = 0`, the same singularity class as `dwell_half`), and
 `k ≤ 0` inverts Formula 4 so distant rooms are favored, contradicting Rule 5. **BLOCKING (Logic)**
 
-**AC-ES57b — Valid boundary configs are ACCEPTED, not over-rejected (NEW this revision)**
+**AC-ES61 — SCALE_CAP ≤ 1.0 is rejected at config load (NEW round-4)**
+GIVEN a config with `SCALE_CAP = 1.0` or `SCALE_CAP < 1.0`, WHEN the config is loaded, THEN load
+is rejected — preventing Formula 1's `(SCALE_CAP − 1.0)` term from going zero or negative, which
+would silently make Type A's growth tell a permanent no-op or an inversion (silhouette shrinking
+as dwell accrues) rather than erroring. Formula 1's variable table has always declared
+`SCALE_CAP > 1.0`; this is the 4th instance of a declared invariant this document initially shipped
+without a guard. **BLOCKING (Logic)**
+
+**AC-ES62 — SPEED_BASE ≤ 0 is rejected at config load (NEW round-4)**
+GIVEN a config with `SPEED_BASE = 0` or `SPEED_BASE < 0` (independent of its relationship to
+`SPEED_MAX`), WHEN the config is loaded, THEN load is rejected. Distinct from AC-ES56: a config
+with `SPEED_BASE = -1.0, SPEED_MAX = 2.2` satisfies AC-ES56's `SPEED_MAX > SPEED_BASE` ordering
+check while still producing `type_c_speed(e=0) < 0` — a literal negative movement speed, not
+merely a pacing inversion. **BLOCKING (Logic)**
+
+**AC-ES65 — type_c_trail_delay ≤ 0 is rejected at config load (NEW round-4)**
+GIVEN a config with `type_c_trail_delay = 0` or `type_c_trail_delay < 0`, WHEN the config is
+loaded, THEN load is rejected. At `0`, Type C's trail target collapses to the player's live
+position, defeating Rule 8's "arrives where they were, never where they currently are"; negative
+is nonsensical for a ring-buffer retention window (Rule 8, AC-ES53). **BLOCKING (Logic)**
+
+**AC-ES57b — Valid boundary configs are ACCEPTED, not over-rejected (NEW round-3, extended round-4)**
 GIVEN configs at the *legal* side of each guarded boundary — `proximity_tier_medium_max = 8.001`,
-`dwell_half = 0.001`, `I_min = 19.999` with `I_max = 20.0`, `SPEED_MAX = 0.901` with
-`SPEED_BASE = 0.9`, `k = 0.001`, `ε = 0.001` — WHEN each config is loaded, THEN load **succeeds**
-in every case. Proves the guards of AC-ES48/49/55/56/57 reject only genuine violations rather than
-being implemented with an inverted or off-by-one comparison that also rejects valid tuning.
-**BLOCKING (Logic)** *(round-3 re-review: every config-guard AC asserted only the rejection path;
-an implementation that rejected everything passed all of them.)*
+`dwell_half = 0.001`, `I_min = 19.999` with `I_max = 20.0`, **`I_min = 0.001` with any legal
+`I_max`** (the *positivity* half of AC-ES55's compound guard, not just its ordering half — NEW
+round-4), `SPEED_MAX = 0.901` with `SPEED_BASE = 0.9`, `k = 0.001`, `ε = 0.001`, **`SCALE_CAP =
+1.001`, `SPEED_BASE = 0.001` (with any legal `SPEED_MAX`), and `type_c_trail_delay = 0.001`** (all
+three NEW round-4) — WHEN each config is loaded, THEN load **succeeds** in every case. Proves the
+guards of AC-ES48/49/55/56/57/61/62/65 reject only genuine violations rather than being implemented
+with an inverted or off-by-one comparison that also rejects valid tuning. **BLOCKING (Logic)**
+*(round-3: every config-guard AC originally asserted only the rejection path, so an implementation
+that rejected everything passed all of them. Round-4: AC-ES55 itself rejects on **two independent
+conditions** — `I_min ≥ I_max` OR `I_min ≤ 0` — and this AC's acceptance test had only ever
+exercised the ordering boundary; an inverted check on the positivity half could over-reject and
+still have passed every AC that existed before this round.)*
 
 ## Coverage Validation
 
@@ -1273,41 +1494,46 @@ an implementation that rejected everything passed all of them.)*
 | Core Rule 2 (tier computation + change-only emission) | AC-ES01, ES02, ES03, ES04 |
 | Core Rule 3 (single entity, despawn-before-spawn) | AC-ES05, ES06 |
 | Core Rule 4 (local escalation computation) | AC-ES07, ES08, ES51 |
-| Core Rule 5 (cadence + room + type selection + RNG draw order) | AC-ES09, ES10, ES10b, ES11, ES12, ES33b, ES52, ES60 |
-| Core Rule 6 (Type A stationary + silhouette growth + `entity:transform`) | AC-ES13, ES14, ES15, ES16, ES17, ES17b, ES49, ES50 |
-| Core Rule 7 (Type B discrete pause-and-shift) | AC-ES18, ES19 |
-| Core Rule 8 (Type C trailing pursuit + ring-buffer window + arrival clamp) | AC-ES20, ES21, ES22, ES23, ES24, ES25, ES53, ES54 |
+| Core Rule 5 (cadence + room + type selection + RNG draw order) | AC-ES09, ES10, ES10b, ES11, ES12, ES33b, ES52, ES60, ES63 |
+| Core Rule 6 (Type A stationary + silhouette growth + `entity:transform`) | AC-ES13, ES14, ES15, ES16, ES17, ES17b, ES49, ES50, ES61 |
+| Core Rule 7 (Type B discrete pause-and-shift) | AC-ES18, ES18b, ES19, ES63, ES64 |
+| Core Rule 8 (Type C trailing pursuit + ring-buffer window + arrival clamp) | AC-ES20, ES21, ES22, ES23, ES24, ES25, ES53, ES54, ES65 |
 | Core Rule 9 (scanning aggression — Type C only) | AC-ES26, ES27, ES28, ES29, ES30, ES30b |
 | Core Rule 10 (no extra logic beyond entity:proximity) | AC-ES31 |
 | Core Rule 11 (position broadcast, Type B/C only) | AC-ES47 |
 | State table: all 4 states + transitions | AC-ES32, ES33, ES34, ES35 |
 | `entity:transform {scale}` emission (Rule 6 / Downstream) | AC-ES17b, ES50 |
 | `entity:position {position}` emission (Rule 11 / Downstream) | AC-ES47 |
-| Formula 1 (silhouette growth + dwell floor + dwell_half guard) | AC-ES14, ES15, ES16, ES49 |
-| Formula 2 (Type C pursuit speed) | AC-ES21, ES22, ES23 |
+| Formula 1 (silhouette growth + dwell floor + dwell_half/SCALE_CAP guards) | AC-ES14, ES15, ES16, ES49, ES61 |
+| Formula 2 (Type C pursuit speed + SPEED_MAX/SPEED_BASE guards) | AC-ES21, ES22, ES23, ES56, ES62 |
 | Formula 3 (retarget interval) | AC-ES09, ES38, ES55 |
 | Formula 4 (room-selection weighting) | AC-ES10, ES10b, ES11, ES57, ES60 |
-| Edge Cases (all 11) | AC-ES38–ES46, ES45b, ES58; loop-teleport coincidence explicitly N/A |
-| Tuning Knob invariants (config load guards — rejection) | AC-ES48, ES49, ES55, ES56, ES57 |
+| Edge Cases (all 13 — 2 NEW round-4: Type B/retarget tick collision, pre-first-spawn default) | AC-ES38–ES46, ES45b, ES58, ES63; loop-teleport coincidence explicitly N/A; pre-first-spawn default documentation-only (no dedicated AC — see text) |
+| Tuning Knob invariants (config load guards — rejection) | AC-ES48, ES49, ES55, ES56, ES57, ES61, ES62, ES65 |
 | Tuning Knob invariants (config load guards — valid-boundary acceptance) | AC-ES57b |
 
-**Traceability claim (corrected round-3).** Every Core Rule, Formula behaviour, state-table
-transition, and Edge Case has a corresponding criterion, and every invariant this GDD declares as
-**load-guarded** has both a rejection AC and (via AC-ES57b) an acceptance AC.
+**Traceability claim (corrected round-3, corrected again round-4).** Every Core Rule, Formula
+behaviour, state-table transition, and Edge Case has a corresponding criterion, and every invariant
+this GDD declares as **load-guarded** has both a rejection AC and (via AC-ES57b) an acceptance AC.
 
 Two documented exceptions, both deliberate rather than gaps:
 1. **Coincidental loop-teleport adjacency** — explicitly out of scope in this GDD's own Edge Cases
    text (it would require reaching into Floor Plan's loop-target selection).
-2. **`SPEED_BASE < MOVE_SPEED < SPEED_MAX`** — declared in Tuning Knobs "Interaction notes" as an
-   *advisory* invariant, deliberately not load-guarded (see the guard-policy note there), and
-   therefore deliberately without a load-guard AC. `MOVE_SPEED` belongs to FPS Movement.
+2. **`SPEED_BASE < MOVE_SPEED < SPEED_MAX`** and **`entity_influence_radius` vs
+   `type_b_step_distance`** — both declared in Tuning Knobs "Interaction notes" as *advisory*
+   invariants, deliberately not load-guarded (see the guard-policy note there: both reach into a
+   foreign registry), and therefore deliberately without a load-guard AC. The second of these has a
+   bounded runtime fallback instead (Rule 7's 32-attempt re-roll cap, AC-ES64) rather than a load
+   guard, since a hang risk needed *some* mitigation even without coupling config loaders.
 
-> ⚠ **Round-3 correction.** The previous version of this section claimed no Tuning Knob invariant
-> was left uncovered. That claim was **false**: `0 < I_min < I_max` (Formula 3) and
-> `SPEED_MAX > SPEED_BASE` (Formula 2) were both declared invariants with neither a guard nor an
-> AC. Both are now guarded (AC-ES55, AC-ES56). Recorded rather than silently corrected, because
-> this table has now overclaimed in two consecutive review rounds and future reviewers should
-> treat its completeness claims as a thing to verify, not accept.
+> ⚠ **Round-3 correction, and round-4 confirms the pattern recurred a third time.** Round-3
+> corrected this table after finding `0 < I_min < I_max` and `SPEED_MAX > SPEED_BASE` declared with
+> neither guard nor AC. **Round-4 found a fourth and fifth instance** (`SCALE_CAP > 1.0`,
+> `SPEED_BASE > 0`) that this table's own prior version still didn't list, caught only because two
+> independent round-4 specialists re-derived the invariant list from the variable tables themselves
+> rather than reading this table's summary. This table's completeness claims have now been wrong in
+> three consecutive rounds. Treat them as a thing to independently re-derive, not a thing to trust —
+> see the document header's standing caution.
 
 ## Open Questions
 
@@ -1402,3 +1628,17 @@ Two documented exceptions, both deliberate rather than gaps:
    no-jump-scare pillar's edge. Not resolved by this GDD (would require reaching into Floor
    Plan's loop-target selection). *Owner: whoever tunes Floor Plan's loop targets. Worth a
    playtest check, not a blocking fix.*
+
+8. **Formula 4 Stage 2 assumes a single "the anomaly room" — chained anomaly reveals are not
+   handled (NEW round-4, found while fixing the eligible-rooms gap, not specialist-flagged).**
+   Floor Plan's own GDD permits a chained-reveal pattern where revealing one `ANOMALY` room can
+   expose a further `ANOMALY`-typed room ("chaining deeper anomaly rooms is a valid authoring
+   pattern") — so a session could have more than one room that has fired `floorplan:reveal` by the
+   time Formula 4 runs. Stage 1's distance weighting is unaffected (any revealed room is simply in
+   the latest `floorplan:update`'s eligible set — see Rule 5). Stage 2's certainty-lerp, however,
+   names a single `P_anomaly` and doesn't specify which revealed `ANOMALY` room it applies to if
+   more than one has been revealed. Not blocking — MVP property layouts may not use chaining, and
+   no AC or playtest concern currently depends on it — but flagged so a future author extending
+   Floor Plan's chaining doesn't discover this GDD silently assumed it away. *Owner: whoever
+   authors a chained-reveal property layout, or Entity System's own next pass if chaining ships
+   before then.*
