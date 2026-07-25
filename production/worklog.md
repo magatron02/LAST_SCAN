@@ -6,6 +6,112 @@ any machine.
 
 ---
 
+## 2026-07-25 (Entity System rounds 2+3) — Entity System #9 re-reviewed twice; round-3 found ZERO structural issues; AC 50→65; round-4 re-review required
+
+**NOTE ON REPO STATE:** this entry covers **two** review rounds. Round 2 (earlier today, separate
+session) was never committed — its changes were still in the working tree when round 3 started. This
+quicksave commits both together. That's why `entity-system.md`'s diff is ~839 lines.
+
+### Round 2 (earlier session, 2026-07-25) — 11 blockers
+Full-mode `/design-review`, 5 specialists + creative-director. Verdict NEEDS REVISION; all 11 fixed
+same session. Headline was **structural**: no event ever broadcast Type B's or Type C's position after
+the spawn frame, so Point Cloud Renderer had no way to draw `ENTITY_SPIKE`/`ENTITY_GHOST` once either
+moved. Fixed by adding **Core Rule 11 + `entity:position {position}`** (latest-value, Type B/C only,
+AC-ES47). Also: `dwell_half` load guard, Rule 4 cross-implementation golden fixture (AC-ES51), Type C
+arrival clamp (AC-ES54), RNG draw ordering (AC-ES52), ring-buffer sizing tied to `type_c_trail_delay`
+(AC-ES53), AC-ES18/19 rewritten (both were passable by a no-op implementation),
+`entity_transform_min_delta` knob, Type A/B audio direction drafted. AC 50→58.
+
+### Round 3 (this session, 2026-07-25) — 4 blockers, **zero structural findings**
+Full-mode `/design-review`, **7 agents**: game-designer, systems-designer, ai-programmer, qa-lead,
+audio-director, **ux-designer (first-ever UX pass on this GDD)** → creative-director synthesis.
+Verdict **NEEDS REVISION**; all 4 blockers + 6 recommended fixed same session.
+
+**CD's convergence argument (explicit, not assumed):** blocker *character* is narrowing — round-1
+structural (div-by-zero, unspecified RNG layer), round-2 structural (no position channel at all),
+**round-3 none**. Every round-3 blocker is a config guard, a wording fix, or one missing formula. The
+opposite of Point Cloud Renderer's round-5 escalation profile. Not APPROVED only because B2 was real
+underspecification and the doc's own coverage claim was false.
+
+**The 4 blockers:**
+1. **Unguarded declared invariants** — `0 < I_min < I_max` (F3) and `SPEED_MAX > SPEED_BASE` (F2) were
+   declared in variable tables exactly like the two rounds 1–2 guarded, but nothing enforced them.
+   Neither NaNs: they fail by **silent inversion** (retarget gets *rarer* as `e` rises; Type C gets
+   *slower* as `e` rises). → load guards + AC-ES55/ES56, plus a **guard-policy note** distinguishing
+   guarded invariants from advisory safe ranges.
+2. **Room-selection weighting had no formula** — Rule 5 was prose only; old AC-ES10/ES11 were passable
+   by a hard step function and by "2× the nearest room, uniform among the rest". → **Formula 4**
+   authored: `w_i = (d_i + ε)^−k` + Stage-2 anomaly lerp to certainty; new knobs
+   `room_weight_exponent` (1.5) / `room_distance_epsilon` (0.5m); AC-ES10/ES11 rewritten (≥5 rooms,
+   ≥5 `e` samples, ±0.02 vs formula) + AC-ES10b pure-math check. **Overruled Open Q#3's own
+   "not blocking" self-assessment** — kept the item as a documented caution rather than deleting it.
+3. **Two variable-table wording contradictions** — `dwell` described as "uninterrupted" while Reset
+   Behavior mandates decay-not-reset; Rule 7 "up to `type_b_step_distance`" vs AC-ES19's exact
+   magnitude. Both fixed *at the table/rule* (where an implementer looks), not clarified downstream.
+4. **`session:end` + retarget on the same tick was unordered** — the two legal orders diverge
+   observably (extra spawn/despawn pair + 2 consumed RNG draws → desynced seeded sequence). →
+   `session:end` wins, retarget discarded, zero draws. New Edge Case + AC-ES58.
+
+**Recommended also applied (6):** AC-ES45/ES45b before/after rewrite (same vacuous-pass defect round-2
+fixed in ES18/19); config-guard **acceptance** ACs (ES57b — every guard AC only tested rejection, so
+a reject-everything impl passed); reveal-mid-manifestation weighting (ES60, Integration); 3.52 m/s
+ceiling restated as **tuning-dependent** (safe-range maxima multiply to **7.5 m/s**, 4.7× MOVE_SPEED —
+the two ranges were set independently, product never evaluated); audio asymmetry declared deliberate +
+**Type B stated to have no functional audio tell**; Open Q#1 given the delivery-floor finding, Open Q#5
+given 2 concrete playtest checks.
+
+**Director's call — Rule 9 Type-C asymmetry = ACCEPTED ASYMMETRY, documented, not redesigned.**
+`game-designer` and `ux-designer` converged from opposite directions: one that it *under-delivers* the
+fantasy's self-declared "sharpest edge" for A/B-heavy sessions, the other that it *leaks* Type C
+identity to a player who learns the pattern. CD ruled the tell fires only at NEAR/ADJACENT inside a
+locked scan — strictly inside the window the fantasy already concedes ("until it's already close") —
+and is inference under duress (intensity-only bar, no speed readout, distorting cloud). Symmetry is
+unaffordable: Type A is stationary by definition, Type B's immunity is a round-1 decision protecting
+its own tell. The *real* finding is the delivery floor → folded into Open Q#1 with a playtest design
+test ("if testers who never saw Type C call it *atmospheric* rather than *hostile*, the floor is
+required"). ~20% of short sessions never roll Type C under the uniform 1/3 placeholder.
+
+**User decisions (AskUserQuestion):** inverse-power weighting family (over softmax / knob-free linear);
+Type B step magnitude **always exactly** `type_b_step_distance` (direction random only —
+uniform-on-circle); `SPEED_BASE < MOVE_SPEED < SPEED_MAX` stays **advisory, deliberately unguarded**
+(MOVE_SPEED is FPS Movement's knob; not worth coupling two config loaders for an invariant that
+degrades gracefully) — documented so the inconsistency reads as intentional.
+
+**CD overruled 4 specialists:** ai-programmer's hitch-dependent Type C path (real, unfixable at GDD
+level, ~35cm corner-cut) → nice-to-have; audio-director's request that Entity constrain Audio's
+de-emphasis curve → declined, would legislate another domain; ux-designer's `SCAN INTERRUPTED`
+placeholder + FAR/MEDIUM drift + tween treatment → reassigned to UI/HUD.
+
+**AC count 58 → 65** (56 Logic + 9 Integration). 7 new, 4 rewritten in place. Verified: no duplicate
+AC ids, counts match header.
+
+**NEW cross-system item found in the main session's own structural pass (not by a specialist):**
+`entity:position` is registered in `entities.yaml` (provisional) and declared in Entity's Downstream
+table, but **Point Cloud Renderer's GDD has no inbound record of it** — grep-confirmed, zero
+occurrences. Round-2's sibling event `entity:transform` *did* get a systems-index entry; this one was
+missed. **Until Renderer records it, the gap round 2 believed it closed is still open on the receiving
+end.** Added to systems-index Open Cross-System Items, owner Point Cloud Renderer (already in MAJOR
+REVISION NEEDED, so it folds into that work).
+
+**⚠ PROCESS PATTERN — read this before round 4.** Third consecutive round where the session that
+*found* the issues also *fixed* them. Two defect classes have each slipped a manual pass repeatedly:
+(a) the **Coverage Validation table's completeness claim** — overclaimed in rounds 2 AND 3; (b)
+**"declared invariant with no load guard"** — round-1 `dwell_half`, round-2 `proximity_tier_medium_max`,
+round-3 `I_min`/`I_max` + `SPEED_MAX`/`SPEED_BASE`. A standing caution naming both is now in the GDD
+header. Round 4 should verify these two classes *directly* rather than trusting the document.
+
+**Cross-file changes:** `systems-index.md` (Entity row → round-3 status; new `entity:position` open
+cross-system item); `design/gdd/reviews/entity-system-review-log.md` (NEW FILE — rounds 2 and 3
+entries). No `entities.yaml` change in round 3 — Formula 4's two knobs are single-GDD with no
+cross-system reuse, same precedent as `coverage_dominance_ratio`.
+
+**NEXT:** `/clear`, then `/design-review design/gdd/entity-system.md` fresh (**round 4**). Remaining
+MVP GDDs awaiting independent re-review: Point Cloud Renderer (MAJOR REVISION NEEDED, round 5), FPS
+Movement, Scan Mechanic, Win/Lose. Then `/gate-check pre-production`. All 9/9 MVP systems remain
+Designed.
+
+---
+
 ## 2026-07-17 (round 3) — Point Cloud Renderer independent re-review: 11 blockers fixed + test-tier doctrine amended; fresh round-4 re-review required
 
 **What got done (this session):** ran `/design-review design/gdd/point-cloud-renderer.md` (full mode)

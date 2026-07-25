@@ -173,7 +173,8 @@ the one thing they needed to know.
 5. **anomaliesLogged is a session-cumulative count of `renderer:anomaly_density` events.**
    Resolves Win/Lose's own flagged gap (its ending record has no `anomaliesLogged` field). UI/HUD
    maintains its own tally — incremented once per `renderer:anomaly_density` event received,
-   regardless of `type` (`spike` or `void`) — and reads it at session end for the terminal screen.
+   regardless of the sign of `sigma` (spike, σ>0, or deficit, σ<0; the payload carries no type
+   label per the producer's 2026-07-15 revision) — and reads it at session end for the terminal screen.
    Chosen over tallying Entity System manifestation changes because `renderer:anomaly_density` is
    the more literal match for "anomaly *logged*" (a detected data anomaly, not merely "the entity
    moved") and requires no new event from any other system.
@@ -403,7 +404,7 @@ identical tick — not AC-UH32/UH35, which each test `SEALED` in isolation).
 | Scan Node | in | `getNodeLedgerViewModel()` (polled while `HUD_ACTIVE`) |
 | Scan Mechanic | in | `movement:scan_triggered`, `scan:capture_frame`, `scan:processing`, `scan:uploading`, `movement:scan_released`, `scan:captured` (scan-readout state) |
 | Entity System | in | `entity:proximity {tier}` (proximity bar + error-message escalation) |
-| Point Cloud Renderer | in | `renderer:anomaly_density {type, sigma}` (error messages + `anomaliesLogged` tally) |
+| Point Cloud Renderer | in | `renderer:anomaly_density {sigma}` (error messages + `anomaliesLogged` tally; `sigma` is signed, no type label — producer revision 2026-07-15) |
 | Win/Lose | in | Ending record `{primaryOutcome, coverage, nodesCompleted, entityEverCaptured}` + this system's own `anomaliesLogged` tally, at `SEALED` |
 | Orchestrator | in | Cached session state (`LOADING`/`ACTIVE`/`SEALED`); `session:tick` (subscribed as the per-tick **boundary** for end-of-tick audio evaluation + render-tick dirty-check — `elapsedSeconds` payload **not** consumed, see Rule 9) |
 | FPS Movement | in | `player:position {x,y,z}` (diegetic coordinate display, corner HUD) |
@@ -833,10 +834,10 @@ Both factors and the absolute-max are injectable/mockable config, never a real c
 
 ### anomaliesLogged Tally (Rule 5)
 
-**AC-UH13 — Tally increments exactly once per renderer:anomaly_density event, regardless of type**
-GIVEN a `renderer:anomaly_density {type: "spike"}` event and a `renderer:anomaly_density
-{type: "void"}` event each fire once, WHEN each is received, THEN `anomaliesLogged` increments by
-exactly 1 per event, for both `type` values identically. **BLOCKING (Logic)**
+**AC-UH13 — Tally increments exactly once per renderer:anomaly_density event, regardless of sigma sign**
+GIVEN a `renderer:anomaly_density {sigma: 5.0}` event (spike) and a `renderer:anomaly_density
+{sigma: -4.0}` event (deficit) each fire once, WHEN each is received, THEN `anomaliesLogged`
+increments by exactly 1 per event, for both sigma signs identically. **BLOCKING (Logic)**
 
 **AC-UH14 — Tally is session-cumulative across all ticks**
 GIVEN multiple `renderer:anomaly_density` events fire across many separate ticks over a session,

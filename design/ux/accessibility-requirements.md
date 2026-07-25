@@ -17,7 +17,7 @@
 | A-V1 | **Non-colour channel** on the coverage ring and per-node status (fill level / icon / text), never colour alone | **Locked** — Floor Plan + Scan Node UI Requirements (load-bearing for the Inverted Reward) |
 | A-V2 | Diegetic text (error messages, logs, coverage %) meets a legible min size; scalable ≥ 1.5× without loss of meaning | New — UI/HUD GDD writes the measurable AC |
 | A-V3 | **Photosensitivity**: `PROXIMITY_CORRUPTED` colour flicker + per-frame jitter must respect a flash-frequency ceiling (≤ 3 flashes/s) and offer a **reduced-distortion** toggle | New — **flagged**: renderer jitter/flicker is a real seizure-risk surface; ADR-0002 (e) jitter is the mechanism |
-| A-V4 | Colour palette (green `#4ade80` / amber `#fbbf24` on near-black `#0a0c10`) checked for contrast + colourblind distinguishability (BASE vs ENTITY_SPIKE) | New — amber/green is a red-green-deficiency risk; pair with A-V1 shape/position cues |
+| A-V4 | Colour palette (green `#4ade80` on near-black `#0a0c10`) checked for contrast | Revised 2026-07-15 — ENTITY_SPIKE now renders in BASE green (Point Cloud Renderer design-review); its tell is density, not colour, so the former amber/green red-green-deficiency risk no longer exists. Amber `#fbbf24` remains only as the master GDD's UI warning-text colour |
 
 ## 2. Motor
 

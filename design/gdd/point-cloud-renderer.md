@@ -1,8 +1,8 @@
 # Point Cloud Renderer
 
-> **Status**: In Design (round-3 re-review `/design-review` 2026-07-17 returned NEEDS REVISION, 11 blockers; all revised same session — see `design/gdd/reviews/point-cloud-renderer-review-log.md`. Fresh-context round-4 re-review pending — do NOT self-approve.)
+> **Status**: In Design (round-5 fresh-context re-review `/design-review` 2026-07-18 returned **MAJOR REVISION NEEDED** — verdict escalated from round-4's NEEDS REVISION. All 4 round-4 blockers confirmed still open on unchanged text; 3 new/broadened blockers (ENTITY_SPIKE has NO density spec anywhere → unbounded worst-case memory; Formula 3/5 broadened — no inbound event carries continuous entity distance/position, so the effect is unimplementable even CPU-side) + 2 round-4 recommended items elevated to blocking (Anchor-pacing contradicts §B Player Fantasy; entity:transform clamp has no AC) = 7 blockers. MAJOR-by-**scope** not by-vision — three load-bearing systems each need real redesign (Formula 2 scan-completeness-aware model; Formula 3/5 cross-system contract w/ Entity + Orchestrator; ENTITY_SPIKE density model from zero). Fixes deferred to dedicated fresh sessions per the don't-self-approve process condition — the same-session patch loop is what bred rounds 2–5. See `design/gdd/reviews/point-cloud-renderer-review-log.md`. Do NOT self-approve.)
 > **Author**: magatron02 + agents
-> **Last Updated**: 2026-07-17
+> **Last Updated**: 2026-07-18
 > **Implements Pillar**: Diegetic Matterport UI · Horror from familiar made wrong
 
 ## Overview

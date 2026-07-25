@@ -1,5 +1,54 @@
 # Active Session State
 
+**Task:** Entity System (#9) review — **round 3 independent re-review done (2026-07-25), NEEDS
+REVISION → all 4 blockers + 6 recommended revised same session.** 7-agent panel (game-designer,
+systems-designer, ai-programmer, qa-lead, audio-director, **ux-designer — first-ever UX pass on this
+GDD**) → creative-director synthesis. **Round 3 found ZERO structural issues** — CD argued convergence
+explicitly: r1 structural, r2 structural, r3 none; every blocker was a config guard, a wording fix, or
+one missing formula.
+
+**The 4 blockers:** (1) `0 < I_min < I_max` and `SPEED_MAX > SPEED_BASE` were declared invariants with
+no load guard — they fail by **silent inversion**, not NaN → guards + AC-ES55/ES56 + a guard-policy
+note separating guarded invariants from advisory ranges; (2) room-selection weighting was prose only
+and the old ACs were passable by a step function → **Formula 4** authored (`(d_i+ε)^−k` + anomaly lerp),
+2 new knobs, AC-ES10/ES11 rewritten (≥5 rooms, ≥5 `e` samples) + AC-ES10b — **overruled Open Q#3's own
+"not blocking" claim**; (3) two variable-table wording contradictions (`dwell` "uninterrupted" vs decay;
+Rule 7 "up to" vs AC-ES19 exact) fixed at the table, not downstream; (4) `session:end` + retarget on the
+same tick was unordered → `session:end` wins, zero RNG draws consumed, AC-ES58.
+
+**Recommended applied (6):** AC-ES45/45b before/after rewrite (same vacuous-pass defect r2 fixed in
+ES18/19); config-guard **acceptance** ACs (ES57b); reveal-mid-manifestation weighting (ES60); 3.52 m/s
+ceiling restated as tuning-dependent (**safe-range maxima → 7.5 m/s**); audio asymmetry declared
+deliberate + **Type B has no functional audio tell**; Open Q#1 delivery floor + Open Q#5 playtest checks.
+
+**CD ruling — Rule 9 Type-C asymmetry = ACCEPTED ASYMMETRY, documented, NOT redesigned.** game-designer
+and ux-designer converged from opposite sides (under-delivers the "sharpest edge" for A/B sessions /
+leaks Type C identity). CD: the tell fires only at NEAR/ADJACENT inside a locked scan — inside the
+window the fantasy already concedes — and symmetry is unaffordable. Real finding = delivery floor
+(~20% of short sessions never roll Type C) → folded into Open Q#1 with a playtest design test.
+
+**AC count 58 → 65** (56 Logic + 9 Integration). Verified no duplicate ids, counts match header.
+
+**⚠ NEW cross-system item (found by the main session's structural pass, not a specialist):**
+`entity:position` is in `entities.yaml` + Entity's Downstream table but **Point Cloud Renderer's GDD has
+zero occurrences of it** (grep-confirmed). Round-2's sibling `entity:transform` got a systems-index
+entry; this one was missed. Until Renderer records it, round-2's "structural gap closed" is still open
+on the receiving end. Logged in systems-index Open Cross-System Items, owner Point Cloud Renderer.
+
+**⚠ PROCESS — read before round 4.** Third consecutive round where the finding session also fixed. Two
+defect classes have each slipped a manual pass repeatedly: (a) Coverage Validation completeness claim
+(overclaimed r2 AND r3); (b) "declared invariant with no load guard" (r1 `dwell_half`, r2
+`proximity_tier_medium_max`, r3 `I_min`/`I_max` + `SPEED_MAX`/`SPEED_BASE`). Standing caution now in the
+GDD header. **Verify both classes directly — do not trust the document's own claims about them.**
+
+**Next:** `/clear`, then `/design-review design/gdd/entity-system.md` fresh (**round 4**). Do NOT
+self-approve. Remaining MVP GDDs awaiting independent re-review: Point Cloud Renderer (MAJOR REVISION
+NEEDED, round 5), FPS Movement, Scan Mechanic, Win/Lose. Then `/gate-check pre-production`.
+
+---
+
+## Superseded — Point Cloud Renderer review (2026-07-17)
+
 **Task:** Point Cloud Renderer (#?) review — **round 3 independent re-review done (2026-07-17), NEEDS
 REVISION → all 11 blockers revised same session.** 5-agent panel (systems-designer, game-designer,
 engine-programmer, performance-analyst, qa-lead) → creative-director synthesis. Headline: systems- AND

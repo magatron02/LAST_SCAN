@@ -37,7 +37,7 @@
 #   Each entry: name, status, source, referenced_by[], attributes{}, added, revised
 
 version: 1
-last_updated: "2026-07-02"  # Win/Lose & Ending #10 GDD complete: coverage and corruption_threshold referenced_by updated to win-lose-ending.md (closing out comments that already anticipated this GDD)
+last_updated: "2026-07-25"  # Entity System #9 round-2 design-review revision: entity:position {position} event registered (provisional) — closes a gap found in fresh-context re-review (Type B/C had no live-position broadcast channel)
 
 # ─── ENTITIES ────────────────────────────────────────────────────────────────
 # Named game-world objects: enemies, NPCs, characters, factions, bosses.
@@ -271,14 +271,48 @@ events:
     payload: "{tier}"
     kind: latest-value
     added: 2026-07-01
+  - name: entity:spawn
+    status: active
+    source: design/gdd/entity-system.md
+    registered_by: design/gdd/orchestrator.md
+    consumers: [design/gdd/point-cloud-renderer.md]  # activates matching visual layer
+    payload: "{type, position}"
+    kind: discrete
+    added: 2026-07-15  # gap found in point-cloud-renderer design-review — registry predated Entity System GDD
+  - name: entity:despawn
+    status: active
+    source: design/gdd/entity-system.md
+    registered_by: design/gdd/orchestrator.md
+    consumers: [design/gdd/point-cloud-renderer.md]  # deactivates matching visual layer
+    payload: "{}"
+    kind: discrete
+    added: 2026-07-15  # gap found in point-cloud-renderer design-review — registry predated Entity System GDD
+  - name: entity:transform
+    status: provisional  # Entity #9 ratifies emission (Core Rule 6 / AC-ES17b, design-review 2026-07-18); Orchestrator formal relay registration pending its own /design-system pass
+    source: design/gdd/entity-system.md
+    registered_by: design/gdd/orchestrator.md
+    consumers: [design/gdd/point-cloud-renderer.md]  # re-scales VOID_MASK Type A occluder in place (growing-void tell)
+    payload: "{scale}"  # Entity Formula 1 silhouette_scale, range [1.0, 1.75); continuous while Type A active, throttled to perceptible deltas (entity_transform_min_delta, new knob, default 0.01)
+    kind: discrete  # stream; renderer holds last-applied while Type A active, resets to 1.0 on entity:despawn — NOT latest-value (avoids a stale scale replaying onto the next Type A)
+    added: 2026-07-18  # closes point-cloud-renderer Open Cross-System Item (entity:transform {scale} contract)
+  - name: entity:position
+    status: provisional  # Entity #9 ratifies emission (Core Rule 11 / AC-ES47, round-2 design-review 2026-07-25); Point Cloud Renderer's own GDD needs a pass to formally record the inbound contract
+    source: design/gdd/entity-system.md
+    registered_by: design/gdd/orchestrator.md
+    consumers: [design/gdd/point-cloud-renderer.md]  # positions ENTITY_SPIKE (Type B) / ENTITY_GHOST (Type C) after the initial spawn frame
+    payload: "{position}"  # {x,y,z}; only emitted while Type B or Type C is the active manifestation — never Type A (stationary) or DORMANT
+    kind: latest-value  # mirrors player:position's own pattern
+    added: 2026-07-25  # round-2 fresh-context re-review — closed a gap: entity:spawn only carries the SPAWN position, nothing updated it afterward for Type B/C
+
   - name: renderer:anomaly_density
     status: active
     source: design/gdd/point-cloud-renderer.md
     registered_by: design/gdd/orchestrator.md
-    consumers: []  # UI/HUD #12 (undesigned)
-    payload: "{type, sigma}"
+    consumers: [design/gdd/ui-hud.md]  # error messages + anomaliesLogged tally
+    payload: "{sigma}"  # signed; type label removed 2026-07-15 (design-review — no consumer may learn entity type)
     kind: discrete
     added: 2026-07-01
+    revised: 2026-07-15
   # -- scan mechanic post-capture flavor (UI/HUD undesigned) --
   - name: scan:processing
     status: provisional  # producer Scan Mechanic #8 in design (not yet reviewed); consumer UI/HUD #12 undesigned

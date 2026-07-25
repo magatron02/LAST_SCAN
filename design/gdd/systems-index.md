@@ -30,7 +30,7 @@ UI, no jump scares, horror from the familiar made wrong, a found-footage cycle.
 
 | # | System Name | Category | Priority | Status | Design Doc | Depends On |
 |---|-------------|----------|----------|--------|------------|------------|
-| 1 | Point Cloud Renderer | Core | MVP | Designed | design/gdd/point-cloud-renderer.md | — |
+| 1 | Point Cloud Renderer | Core | MVP | In Review (round-5 fresh-context re-review 2026-07-18 **MAJOR REVISION NEEDED** — verdict escalated from round-4's NEEDS REVISION; all 4 round-4 blockers confirmed still open + 3 new/broadened + 2 elevated = 7 blockers across THREE systems needing real redesign, not patches: Formula 2 model redesign, Formula 3/5 cross-system contract, ENTITY_SPIKE density model authored from zero. MAJOR-by-scope not by-vision. Deferred to dedicated fresh sessions per the standing don't-self-approve condition — see review log) | design/gdd/point-cloud-renderer.md | — |
 | 2 | FPS Movement | Core | MVP | Designed | design/gdd/fps-movement.md | — |
 | 3 | Floor Plan System | Gameplay | MVP | Approved (round 4 independent re-review, 2026-06-30) | design/gdd/floor-plan-system.md | Point Cloud Renderer |
 | 4 | Scan Node System | Gameplay | MVP | Approved (round 4 independent re-review, 2026-07-01) | design/gdd/scan-node-system.md | Floor Plan System |
@@ -38,7 +38,7 @@ UI, no jump scares, horror from the familiar made wrong, a found-footage cycle.
 | 6 | Audio System | Audio | Vertical Slice | Not Started | — | Entity System |
 | 7 | Session/Game State Orchestrator (inferred) | Core | MVP | Approved (round-4 independent re-review, 2026-07-02) | design/gdd/orchestrator.md | Point Cloud, FPS Movement, Scan Node |
 | 8 | Scan Mechanic | Gameplay | MVP | Designed | design/gdd/scan-mechanic.md | FPS Movement, Scan Node, Point Cloud, Orchestrator |
-| 9 | Entity System | Gameplay | MVP | Designed | design/gdd/entity-system.md | Point Cloud, Floor Plan, Orchestrator |
+| 9 | Entity System | Gameplay | MVP | In Review (round-3 fresh-context review 2026-07-25 **NEEDS REVISION** — 4 blockers + 7 recommended, full-mode w/ creative-director synthesis + first-ever ux-designer pass; **zero structural findings** — blocker character narrowing across rounds (r1 structural, r2 structural, r3 none); **all 4 blockers + 6 recommended fixed same session** — Formula 4 room-selection weighting authored (was qualitative prose only, overruling Open Q#3's own "not blocking" claim), load guards for `I_min<I_max` + `SPEED_MAX>SPEED_BASE` + Formula 4's `k`/`ε`, `session:end`-vs-retarget same-tick ordering, two variable-table wording contradictions fixed, AC-ES45/45b vacuous-pass rewrite, config-guard acceptance ACs, Rule 9 Type-C asymmetry ruled an ACCEPTED asymmetry by CD (documented, not redesigned). AC 58→65. Pending a THIRD fresh-context re-review before Approved per standing don't-self-approve doctrine — see review log) | design/gdd/entity-system.md | Point Cloud, Floor Plan, Orchestrator |
 | 10 | Win/Lose & Ending | Gameplay | MVP | Designed | design/gdd/win-lose-ending.md | Scan Node, Entity System, Orchestrator |
 | 11 | Cycle / Meta Layer | Meta | Alpha | Not Started | — | Persistence, Win/Lose, Orchestrator |
 | 12 | UI / HUD | UI | MVP | In Review (round-7 independent re-review 2026-07-15, 4 blockers resolved, AC 60→60; **Approved gated on producer mechanical citation-check hook** per CD — 5th consecutive round the citation class slipped a manual pass; no round-8 manual pass) | design/gdd/ui-hud.md | Scan Mechanic, Entity, Scan Node, Orchestrator |
@@ -183,6 +183,28 @@ UI, no jump scares, horror from the familiar made wrong, a found-footage cycle.
   Rule 4: `coverage_dominance_ratio` (default 1.5×, new tuning knob) gives AC-SN31 a
   measurable proxy — larger font-size ratio + DOM/reading-order precedence — closing
   it as `AC-UH09`–`AC-UH12`.
+
+- ~~**Entity System (#9) ↔ Point Cloud Renderer (#1) — `entity:transform {scale}` contract (NEW,
+  2026-07-16).**~~ **RESOLVED 2026-07-18** by the Entity System design-review revision: Entity
+  System now emits `entity:transform {scale}` (Core Rule 6, AC-ES17b) carrying Formula 1's
+  `silhouette_scale`; `entities.yaml` registers the event (provisional — Orchestrator's formal
+  relay registration remains its own `/design-system` Phase 5 step). Point Cloud Renderer already
+  records the inbound contract. The growing-void tell (Player-Fantasy Anchor moment) can now
+  render. (Point Cloud Renderer Open Q#5.)
+
+- **Entity System (#9) → Point Cloud Renderer (#1) — `entity:position {position}` inbound contract
+  UNRECORDED (NEW, 2026-07-25, round-3 design-review structural pass).** Entity System added
+  `entity:position` in its round-2 revision (Core Rule 11 / AC-ES47) to close the gap where Type B
+  and Type C had no way to broadcast their live post-spawn position. The event is registered in
+  `design/registry/entities.yaml` as provisional and is declared in Entity System's own Downstream
+  table — but **Point Cloud Renderer's GDD has no inbound record of it** (grep-confirmed: zero
+  occurrences of `entity:position` in `design/gdd/point-cloud-renderer.md`), and the item was never
+  added to this list when it was created. The project's own rule requires bidirectional
+  dependencies: if A depends on B, B's doc must mention A. Round-2's sibling event
+  (`entity:transform`) *did* get an entry here; this one was missed. **Without this, Point Cloud
+  Renderer still cannot render a moving Type B/C** — the exact gap round-2 believed it had closed.
+  *Resolve at Point Cloud Renderer's next pass (it is already in MAJOR REVISION NEEDED, so this
+  folds into that work).*
 
 - **Orchestrator (#5) — `scan:*` + `floorplan:*` contracts.** Scan Node (#4) emits
   authoritative `scan:complete` / `scan:abort` / `scan:coverage` /
