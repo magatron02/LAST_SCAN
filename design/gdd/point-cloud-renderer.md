@@ -1,8 +1,30 @@
 # Point Cloud Renderer
 
-> **Status**: In Design (round-6 fresh-context re-review `/design-review` 2026-07-25 returned **NEEDS REVISION** — downgraded from round-5's MAJOR REVISION NEEDED. Two of round-5's three "needs real redesign" items closed as doc-fixes: the Formula 3/5 cross-system contract is resolved by Entity System's same-day `entity:position` addition (Core Rule 11) combined with the renderer's own `camera.position` — no new upstream event required; Formula 5's fragment injection point is a normative pin, not a redesign. Remaining structural work — Formula 2's scan-completeness-conditioned baseline (unscanned tiles no longer false-fire as voids), ENTITY_SPIKE's density spec (new Formula 1b), and the Anchor-moment pacing gate (confirmation dwell + softened §B) — all fixed this session per user decision to revise now, alongside the AC-D01/entity:transform-clamp gaps and the now-ratified `entity:transform` contract. AC count 28→33. See `design/gdd/reviews/point-cloud-renderer-review-log.md`. Pending a fresh-context round-7 re-review before Approved, per the standing don't-self-approve process condition — do NOT self-approve.)
+> **Status**: In Design — **MAJOR REVISION NEEDED** (round-7 fresh-context `/design-review`, 2026-07-26).
+> **This document has NOT been revised since round 6; none of round-7's findings are fixed here.**
+> 8 blockers + 8 recommended, **+1 found post-review** (Formula 5 pins `#include <output_fragment>`, a
+> chunk that does not exist in r171 — renamed `opaque_fragment` in r152; a literal `.replace()` silently
+> no-ops and the flicker never renders, while AC-D08 still passes), **+1 from the perf prototype** =
+> **10 blockers open**. Verdict is MAJOR **by process, not by vision**: **5 of the 8 review blockers were
+> introduced by round-6's own same-session fixes** (6 of 10 counting the addendum), so the
+> creative-director ruled **no further same-session fixing on this document — no exceptions for "cheap"
+> items**. Root cause named: **Formula 2 has been the primary blocker in 6 of 7 rounds** and must be
+> rebuilt once from its real data sources, not patched a fifth time.
+>
+> **ADR-blocking prototypes have now been RUN (2026-07-26):**
+> - **Open Q#1 (occluder depth-cull) — GATE PASS.** 100% cull inside the silhouette, zero colour written,
+>   120/120 viewpoints clean. Numeric readback, so it also serves as **AC-C08 evidence**. No longer blocks
+>   the ADR, pending the ADVISORY screenshot sign-off.
+> - **Open Q#7 (min-spec perf) — FAILS AC-P01's max-frame bar in all three windows**, and inverts this
+>   GDD's risk model: rendering is a non-issue (136 avg FPS with 3M points + jitter/flicker over the whole
+>   merged buffer), but **Formula 2's CPU sampling pass costs 31–37 ms per pass** — ~2× the entire frame
+>   budget, as one un-amortized lump every 0.5 s — on hardware *faster* than min-spec. AC-P01's max-frame
+>   bar is unmeetable with Formula 2 as specified on any hardware.
+>
+> Full detail, including what the prototypes did **not** settle, in
+> `design/gdd/reviews/point-cloud-renderer-review-log.md`. **Do NOT self-approve.**
 > **Author**: magatron02 + agents
-> **Last Updated**: 2026-07-25
+> **Last Updated**: 2026-07-25 (content) · 2026-07-26 (status only — no content revised)
 > **Implements Pillar**: Diegetic Matterport UI · Horror from familiar made wrong
 
 ## Overview

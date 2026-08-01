@@ -25,6 +25,9 @@ const RT = 256;                 // offscreen render target edge (square, cheap, 
 const BASE_HEX = 0x4ade80;
 const BG_HEX = 0x0a0c10;
 const CULL_PASS_RATIO = 0.5;    // silhouette must lose >50% of its green to count as culling
+const CULL_BOX = 0.25;          // sample box edge as a fraction of the RT — kept well inside
+                                // the capsule's projected silhouette at every tested angle,
+                                // so the measurement never straddles the boundary
 
 const results = document.getElementById("results");
 const hud = document.getElementById("hud");
@@ -44,14 +47,21 @@ const target = new THREE.WebGLRenderTarget(RT, RT, {
   minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter,
 });
 
-// A dense flat point wall at z = -3, sized to fill the view behind the occluder.
-// Flat (not a room) so "how many green pixels" has one unambiguous source.
+// An enclosing point-shell ROOM with the occluder at its centre.
+//
+// NOTE (harness fix): this was first written as a single flat wall at z=-3. That made T3
+// report a false FAIL — orbiting the camera around the occluder put it in front of the
+// wall at rear azimuths, so the wall was between camera and occluder and 0% cull was the
+// CORRECT result, not a sort failure. A shell guarantees geometry behind the occluder from
+// every viewpoint, which is both the valid test and the shape of the real game.
 function buildWall() {
-  const N = 400_000, W = 8, H = 8, arr = new Float32Array(N * 3);
+  const N = 400_000, S = 8, arr = new Float32Array(N * 3);
+  const R = () => (Math.random() - 0.5) * S;
   for (let i = 0; i < N; i++) {
-    arr[i * 3] = (Math.random() - 0.5) * W;
-    arr[i * 3 + 1] = (Math.random() - 0.5) * H;
-    arr[i * 3 + 2] = -3;
+    const face = i % 6, h = S / 2;
+    const p = [R(), R(), R()];
+    p[face >> 1] = (face & 1) ? h : -h;   // pin one axis to a face
+    arr[i * 3] = p[0]; arr[i * 3 + 1] = p[1]; arr[i * 3 + 2] = p[2];
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.BufferAttribute(arr, 3));
@@ -79,7 +89,7 @@ const occluder = new THREE.Mesh(
   })
 );
 occluder.renderOrder = -1;           // contract: draws before every point layer
-occluder.position.set(0, 0, -1.5);
+occluder.position.set(0, 0, 0);      // room centre — geometry behind it from every angle
 scene.add(occluder);
 
 // ─── Pixel counting ───────────────────────────────────────────────────────────
@@ -121,9 +131,9 @@ function countPixels(boxFrac = 0.45) {
 
 function aimAt(azimuth, elevation, dist) {
   camera.position.set(
-    Math.sin(azimuth) * Math.cos(elevation) * dist,
-    Math.sin(elevation) * dist,
-    -1.5 + Math.cos(azimuth) * Math.cos(elevation) * dist
+    occluder.position.x + Math.sin(azimuth) * Math.cos(elevation) * dist,
+    occluder.position.y + Math.sin(elevation) * dist,
+    occluder.position.z + Math.cos(azimuth) * Math.cos(elevation) * dist
   );
   camera.lookAt(occluder.position);
   camera.updateMatrixWorld();
@@ -135,9 +145,9 @@ const out = { t1: null, t2: null, t3: null, t4: null };
 function runT1() {
   aimAt(0, 0, 2.2);
   occluder.visible = false;
-  const without = countPixels();
+  const without = countPixels(CULL_BOX);
   occluder.visible = true;
-  const withOcc = countPixels();
+  const withOcc = countPixels(CULL_BOX);
   const ratio = without.green ? 1 - withOcc.green / without.green : 0;
   const pass = withOcc.green < without.green && ratio >= CULL_PASS_RATIO;
   out.t1 = { without: without.green, with: withOcc.green, ratio, pass };
@@ -167,9 +177,9 @@ function runT3() {
       const az = (a / AZ) * Math.PI * 2;
       aimAt(az, el, 2.2);
       occluder.visible = false;
-      const without = countPixels();
+      const without = countPixels(CULL_BOX);
       occluder.visible = true;
-      const withOcc = countPixels();
+      const withOcc = countPixels(CULL_BOX);
       if (without.green < 200) continue;      // grazing angle: too little signal to judge
       const ratio = without.green ? 1 - withOcc.green / without.green : 0;
       n++;
@@ -186,17 +196,39 @@ function runT3() {
 }
 
 function runT4() {
-  // Camera inside the capsule — GDD Edge Cases predicts "solid black void fills the viewport".
-  camera.position.copy(occluder.position);
-  camera.lookAt(0, 0, -3);
-  camera.updateMatrixWorld();
-  const c = countPixels(0.9);
-  const mostlyBg = c.bg / c.total > 0.9;
-  out.t4 = { ...c, mostlyBg };
-  log(`T4 near-plane  bg ${((c.bg / c.total) * 100).toFixed(1)}%  green ` +
-      `${((c.green / c.total) * 100).toFixed(1)}%  other ${((c.other / c.total) * 100).toFixed(1)}%`);
-  log(`   GDD predicts a solid black void filling the viewport → ` +
-      `${mostlyBg ? "MATCHES (mostly background)" : "DOES NOT MATCH — points still visible through it"}`);
+  // Camera inside the capsule. GDD Edge Cases predicts "solid black void fills the viewport…
+  // reads as optics being blocked". Test the recipe AS SPECIFIED (three's default FrontSide),
+  // then re-test with DoubleSide to show what the prediction would actually require.
+  const measure = () => {
+    camera.position.copy(occluder.position);
+    camera.lookAt(0, 0, -4);
+    camera.updateMatrixWorld();
+    return countPixels(0.9);
+  };
+  const asSpecified = measure();                       // side defaults to FrontSide
+  occluder.material.side = THREE.DoubleSide;
+  occluder.material.needsUpdate = true;
+  const doubleSided = measure();
+  occluder.material.side = THREE.FrontSide;            // restore
+  occluder.material.needsUpdate = true;
+
+  const spec = { bg: asSpecified.bg / asSpecified.total, green: asSpecified.green / asSpecified.total };
+  const dbl = { bg: doubleSided.bg / doubleSided.total, green: doubleSided.green / doubleSided.total };
+  out.t4 = { spec, dbl, matchesAsSpecified: spec.bg > 0.9 };
+
+  log(`T4 near-plane  as specified (FrontSide): bg ${(spec.bg * 100).toFixed(1)}%  ` +
+      `green ${(spec.green * 100).toFixed(1)}%`);
+  log(`               with side:DoubleSide:    bg ${(dbl.bg * 100).toFixed(1)}%  ` +
+      `green ${(dbl.green * 100).toFixed(1)}%`);
+  log(`   GDD Edge Case predicts a solid black void filling the viewport → ` +
+      `${spec.bg > 0.9 ? "MATCHES as specified" : "DOES NOT MATCH as specified"}` +
+      `${dbl.bg > 0.9 ? "; DoubleSide would deliver it" : "; DoubleSide does not deliver it either"}`);
+  if (spec.bg <= 0.9) {
+    log(`   ⚠ GDD FINDING: with three's default FrontSide the capsule's interior writes no depth,`);
+    log(`     so the player sees straight THROUGH the void when the entity overlaps the camera —`);
+    log(`     the opposite of the documented "optics blocked" read. Core Rule 6 never specifies`);
+    log(`     material.side. Advisory only: Entity System owns preventing camera/entity overlap.`);
+  }
 }
 
 // ─── Run ──────────────────────────────────────────────────────────────────────

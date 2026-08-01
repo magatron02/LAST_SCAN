@@ -94,11 +94,56 @@ cannot resolve by argument. Built both:
   360°+elevation sweep (catches angle-dependent sort failure), T4 near-plane overlap vs the GDD's
   "solid black void" claim.
 
-**NEITHER HAS BEEN RUN.** Chrome extension not connected this session, and the WebGL-integration
-harness the GDD itself requires does not exist yet. Both serve cleanly under
-`npx vite --port 5178 --strictPort` at `/prototypes/q7-perf/` and `/prototypes/q1-occluder/`, and both
-pass `node --check`. **Caveat: this machine is not the min-spec baseline** (Iris Xe / Vega 8, 8 GB,
-1080p) — a pass here does not clear AC-P01's gate; it settles the *relative* questions.
+### Prototype results — BOTH RUN (later the same session, once the Chrome extension reconnected)
+Hardware: developer desktop, 1639×846 @ DPR 1.5625 — **not** the min-spec baseline.
+
+**Q#1 occluder — GATE PASS.** T1 cull 2,921 → **0** green px inside the silhouette (100%); T2
+invisibility 12,996/12,996 background, no colour written; T3 **120 viewpoints, 0 failures, worst case
+still 100% cull** — no angle dependence. Numeric `readRenderTargetPixels` verification, so it **doubles
+as AC-C08 evidence** and is the WebGL-integration tier's first real consumer. Screenshot captured for
+the ADVISORY sign-off — the void reads exactly as intended. **Q#1 no longer blocks the ADR.**
+*Harness caveat worth remembering:* the first run reported T3 **FAIL** (37/92 viewpoints). That was
+**my test rig, not the recipe** — a single flat wall meant rear azimuths put the camera in front of it,
+where 0% cull is correct. Rebuilt as an enclosing room shell → 120/120. Checked before reporting;
+a false "the recipe is angle-dependent" would have been a serious misfire.
+
+**Q#7 perf — FAILS AC-P01's max-frame bar in all three windows, and INVERTS THE RISK MODEL.**
+
+| Scenario | avg FPS | max frame | p99 | F2 pass avg / max |
+|---|---|---|---|---|
+| 0-baseline | 136.3 | 46.8 ms | 34.1 | 35.7 / 46.1 ms |
+| a +GHOST DISTURBED | 136.4 | **46.9** ✗ | 38.7 | 36.6 / 40.3 ms |
+| b +GHOST CORRUPTED | 138.5 | **33.6** ✗ | 31.8 | 31.3 / 33.0 ms |
+| c +SPIKE CORRUPTED | 133.6 | **42.3** ✗ | 32.5 | 32.4 / 38.6 ms |
+
+Seven rounds worried about point counts, merge policy, GPU memory, draw calls. **The rendering side is
+a non-issue** — 136 avg FPS (2.4× the ≥55 bar) with 3M points and jitter+flicker over the whole merged
+buffer, i.e. the Q#6-(a) worst case. **The blocker is Formula 2's CPU sampling pass: 31–37 ms/pass**,
+~2× the entire 16.6 ms frame budget, one un-amortized lump every 0.5 s. Pass max tracks frame max
+almost exactly — *the pass is the spike*. CPU-bound ⇒ worse on min-spec ⇒ **AC-P01's max-frame bar is
+unmeetable with Formula 2 as specified on any hardware.** Elevates round-7's "no amortization Plan B"
+from recommended to **BLOCKING (total now 10)**, and confirms that AC-P01 never tested what turns out
+to be the dominant cost in the system. **It is Formula 2 again — 6 of 7 rounds — now failing
+empirically rather than on paper.**
+
+**NOT settled — blocker 5 stays open.** Type B vs Type C: direction shows in the averages (B 32.4 vs
+C 31.3 ms) but **baseline, with no entity at all, had the highest max (46.8 ms)**. Variance swamps the
+effect; scenario 0 likely absorbed JIT/GC warm-up. Needs repeat runs with randomised order.
+
+**Settled / new:**
+- **Memory concern RETIRED** — 40.2 MB CPU-side, 64.2 MB heap vs 8 GB. Point count is a fine proxy.
+- **Cost bound (blocker 3):** actual **418 tiles / ~530k pts** — frustum cuts ~70%, so both round-7
+  estimates overshot tile count. At legal-max density (D=2000×W_s=1.5) it scales ~3.2× to ~1.7M/pass,
+  so the extreme-tuning concern is directionally right.
+- **NEW — tile index build = 87 ms** (1,156 tiles, 5.8 MB). **Breaks AC-E04's "within the same frame"
+  BASE rebuild** if the index rebuilds with it. Q#6 option (a)'s hidden cost now has a price tag.
+- **NEW (Q#1 T4) — the near-plane Edge Case is unachievable as written.** GDD predicts "solid black
+  void fills the viewport"; measured **70.8% of the view is still points** — you see *through* the void.
+  Core Rule 6 never specifies `material.side`; r171 defaults to `FrontSide`, so the capsule interior
+  writes no depth. `DoubleSide` gives 100% background, exactly as predicted. ADVISORY.
+- **Lead for the Formula 2 rebuild (not applied):** the pass tests *every* point per active tile, but
+  density estimation doesn't need that — subsampling ~5% per tile is statistically adequate at ~20×
+  less cost. The rebuild may be far cheaper than these numbers imply.
 
 ### Files touched
 `design/gdd/reviews/point-cloud-renderer-review-log.md` (round-7 entry + addendum),
@@ -107,7 +152,8 @@ A-V3 flicker-ceiling violation, undeclared Level Design dependency), `prototypes
 `prototypes/q1-occluder/*`. **`design/gdd/point-cloud-renderer.md` deliberately UNTOUCHED.**
 
 ### NEXT
-1. **Run both prototypes** — ideally on min-spec hardware for the real AC-P01 gate.
+1. ~~Run both prototypes~~ **DONE** (see Prototype results above). Still worth a re-run on actual
+   min-spec hardware for the AC-P01 FPS bar, and a randomised-order re-run to settle blocker 5.
 2. **One dedicated Formula 2 session** (fresh context, nothing else in it): rebuild the detection model
    from real data sources; decide the coverage question; delete the derived cost arithmetic in favour
    of a normative per-pass budget (CD ruled that arithmetic ADR-work, not GDD-work — it has broken twice).

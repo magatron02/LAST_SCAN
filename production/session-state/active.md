@@ -48,7 +48,21 @@ engine-programmer's Q#6 spatial-index blocker → recommended-mandatory (correct
 needs a tile→point index, but Q#6 is already a deferred ADR question). **Occluder recipe CLEARED**
 under fresh adversarial testing — the most-patched technical claim held. **AC count verified at 33.**
 
-**Built this session (NEITHER RUN — Chrome extension not connected; no WebGL harness exists yet):**
+**PROTOTYPES BUILT AND RUN (2026-07-26).** **Q#1 GATE PASS** — 100% cull, no colour written, 120/120
+viewpoints; numeric readback doubles as **AC-C08 evidence**; no longer blocks the ADR (pending ADVISORY
+screenshot sign-off). **Q#7 FAILS AC-P01's max-frame bar in all 3 windows and INVERTS THE RISK MODEL:**
+rendering is a non-issue (136 avg FPS, 3M pts + jitter/flicker over the whole merged buffer) but
+**Formula 2's CPU sampling pass costs 31–37 ms/pass** — ~2× the frame budget, un-amortized, every 0.5 s,
+on hardware *faster* than min-spec ⇒ **unmeetable on any hardware. +1 blocker, total 10.** Also: tile
+index build **87 ms** breaks AC-E04's same-frame rebuild; memory concern **RETIRED** (40 MB vs 8 GB);
+Q#1 T4 found the near-plane Edge Case unachievable (`material.side` unspecified, r171 `FrontSide` ⇒
+player sees *through* the void; `DoubleSide` fixes it). **Blocker 5 (Type B vs C) STILL OPEN** — run
+variance swamped it (baseline, with no entity, had the highest max). **Lead for the F2 rebuild:**
+subsample ~5% of points per tile instead of testing every one — statistically adequate, ~20× cheaper.
+*Harness lesson: Q#1's first run reported a false T3 FAIL caused by my own flat-wall test geometry;
+verify the rig before trusting its verdict.*
+
+**Prototype details:**
 - `prototypes/q7-perf/` — merged 1.5M-pt BASE (`frustumCulled=false` = Q#6 option (a) worst case),
   jitter+flicker in one `onBeforeCompile`, occluder, GHOST duplicate, SPIKE at 3,240 pts, **Formula 2
   sampling live at worst-case tuning** (`A_tile` 0.5, radius 15m). 4 scenarios × 300 frames incl. a

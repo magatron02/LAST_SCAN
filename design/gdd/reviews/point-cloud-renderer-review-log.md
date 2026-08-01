@@ -54,6 +54,78 @@ in Formula 5's round-6 injection-point fix; together they mean that fix introduc
 round-6's self-inflicted count from 5 to 6 of 9. Reinforces CD's core diagnosis and the round-8 exit
 criteria unchanged.
 
+### Prototype results — 2026-07-26 — Open Q#1 **PASS**, Open Q#7 **FAIL (new blocker)**
+Both ADR-blocking prototypes were built and **run** this session (`prototypes/q1-occluder/`,
+`prototypes/q7-perf/`). Hardware: developer desktop, 1639×846 @ DPR 1.5625 — **not** the min-spec
+baseline. Numbers below are indicative for min-spec, decisive only where noted.
+
+**Open Q#1 — occluder depth-cull: GATE PASS.** T1 cull 2,921 → **0** BASE-coloured pixels inside the
+silhouette box (100% removed). T2 invisibility: 12,996/12,996 background, occluder writes no colour of
+its own. T3 all-angles: **120 viewpoints** across a full azimuth orbit × 5 elevations, **0 below the 50%
+cull bar, worst case still 100%** — no angle dependence. Verification is numeric
+(`readRenderTargetPixels` counts), so this **doubles as AC-C08's evidence** and satisfies the
+WebGL-integration tier's first consumer. Screenshot captured for the ADVISORY lead sign-off; the void
+reads as intended (humanoid silhouette of absence in the point field). Combined with round-7's
+analytical clearing by engine-programmer, **Q#1 no longer blocks the ADR** pending that sign-off.
+
+> **Harness caveat, recorded deliberately:** the first run reported T3 **FAIL** (37/92 viewpoints below
+> the bar). That was a **defect in the test rig, not the recipe** — the point field was a single flat
+> wall at z=−3, so orbiting the camera to rear azimuths put it *in front of* the wall, where 0% cull is
+> the correct answer. Rebuilt as an enclosing room shell (geometry behind the occluder from every angle),
+> which is also the shape of the real game; T3 then passed 120/120. Noted so a future reader does not
+> rediscover the false failure, and as a reminder that a prototype's own correctness needs checking
+> before its verdict is trusted.
+
+**Open Q#7 — min-spec perf: FAILS the AC-P01 max-frame bar in all three windows, for a reason no
+review round predicted.**
+
+| Scenario | avg FPS | max frame | p99 | Formula 2 pass avg / max |
+|---|---|---|---|---|
+| 0-baseline (BASE only) | 136.3 | 46.8 ms | 34.1 ms | 35.7 / 46.1 ms |
+| a — +GHOST, DISTURBED | 136.4 | **46.9 ms** ✗ | 38.7 ms | 36.6 / 40.3 ms |
+| b — +GHOST, CORRUPTED | 138.5 | **33.6 ms** ✗ | 31.8 ms | 31.3 / 33.0 ms |
+| c — +SPIKE, CORRUPTED | 133.6 | **42.3 ms** ✗ | 32.5 ms | 32.4 / 38.6 ms |
+
+**This inverts the GDD's risk model.** Seven rounds worried about point counts, merge policy, GPU memory
+and draw calls. Measured, the **rendering side is a non-issue**: 136 avg FPS — 2.4× the ≥55 bar — with
+3M points and the jitter+flicker shaders running over the entire merged buffer (the Q#6-(a) worst case).
+The GPU never struggles. **The blocker is Formula 2's CPU sampling pass at 31–37 ms per pass** — ~2× the
+whole 16.6 ms frame budget, as one un-amortized lump every 0.5 s. Pass max tracks frame max almost
+exactly: **the pass *is* the spike.** Because the cost is CPU-bound it can only worsen on min-spec, so
+**AC-P01's max-frame bar is unmeetable with Formula 2 as specified on any hardware.** This elevates
+round-7's engine-programmer recommended item ("no amortization Plan B") to **BLOCKING**, and confirms
+performance-analyst's finding that AC-P01 never tested the sampling pass — which turns out to be the
+dominant cost in the entire system.
+
+**What the run does NOT settle — blocker 5 stays open.** The Type B vs Type C question is unresolved:
+the predicted direction appears in the averages (B 32.4 ms vs C 31.3 ms) but **baseline — no entity at
+all — recorded the highest max of the four (46.8 ms)**. Run-to-run variance swamps the entity-type
+effect, and scenario 0 running first likely absorbed JIT/GC warm-up despite the 60-frame warmup. Needs
+repeat runs with randomised scenario order before any claim is made either way.
+
+**Findings settled or added by measurement:**
+- **Memory concern RETIRED** (round-7 recommended #4): 40.2 MB CPU-side buffers, 64.2 MB JS heap against
+  the 8 GB baseline. Point count *is* an adequate proxy; there is no memory gap.
+- **Cost-bound dispute (blocker 3) partly resolved:** actual is **418 active tiles / ~530k points** — the
+  frustum gate cuts ~70%, so both round-7 estimates overshot on tile count. But at *legal-max* density
+  (D=2000 × W_s=1.5) this scales ~3.2× to ~1.7M points/pass, so systems-designer's extreme-tuning concern
+  is directionally correct and would be catastrophic. The doc must state a per-pass budget, not derived
+  arithmetic (as CD already ruled).
+- **NEW finding — tile index build is 87 ms** (1,156 tiles, 5.8 MB). **AC-E04 requires BASE rebuild
+  "within the same frame" on `floorplan:update`**; an 87 ms index rebuild makes that impossible if the
+  index rebuilds with it. Q#6 option (a)'s hidden dependency now has a measured price.
+- **NEW finding (Q#1 T4) — the near-plane Edge Case is unachievable as written.** GDD predicts "solid
+  black void fills the viewport… reads as optics being blocked"; measured **70.8% of the view is still
+  points** — the player sees straight *through* the void. Cause: Core Rule 6 never specifies
+  `material.side`, and r171's default `FrontSide` means the capsule interior writes no depth.
+  `side: DoubleSide` yields 100% background, exactly as predicted. ADVISORY (Entity System owns
+  preventing camera/entity overlap) but the documented behaviour cannot currently occur.
+
+**Direction for the Formula 2 rebuild (track 2), not applied here:** the pass tests *every* point in
+every active tile, but density estimation does not require that — subsampling ~5% of points per tile
+gives a statistically adequate estimate at roughly 20× less cost. The rebuild may be far cheaper than
+these numbers suggest. Recorded as a lead, not a decision.
+
 ## Review — 2026-07-25 — Verdict: NEEDS REVISION (round 6, fresh-context re-review, fixed same session)
 Scope signal: L (down from round-5's XL)
 Specialists: game-designer, systems-designer, engine-programmer, performance-analyst, qa-lead, creative-director (synthesis)
