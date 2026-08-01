@@ -1,15 +1,36 @@
 # Point Cloud Renderer
 
-> **Status**: In Design — **MAJOR REVISION NEEDED** (round-7 fresh-context `/design-review`, 2026-07-26).
-> **This document has NOT been revised since round 6; none of round-7's findings are fixed here.**
-> 8 blockers + 8 recommended, **+1 found post-review** (Formula 5 pins `#include <output_fragment>`, a
-> chunk that does not exist in r171 — renamed `opaque_fragment` in r152; a literal `.replace()` silently
-> no-ops and the flicker never renders, while AC-D08 still passes), **+1 from the perf prototype** =
-> **10 blockers open**. Verdict is MAJOR **by process, not by vision**: **5 of the 8 review blockers were
-> introduced by round-6's own same-session fixes** (6 of 10 counting the addendum), so the
-> creative-director ruled **no further same-session fixing on this document — no exceptions for "cheap"
-> items**. Root cause named: **Formula 2 has been the primary blocker in 6 of 7 rounds** and must be
-> rebuilt once from its real data sources, not patched a fifth time.
+> **Status**: In Design — **MAJOR REVISION NEEDED** (round-7 fresh-context `/design-review`, 2026-07-26),
+> **partially addressed: CD track 2 (the Formula 2 rebuild) is DONE as of 2026-08-01. Track 3 has not
+> run — 7 of the 10 blockers are still open and untouched in this document.**
+>
+> Round 7 recorded 8 blockers + 8 recommended, **+1 found post-review** (Formula 5 pins
+> `#include <output_fragment>`, a chunk that does not exist in r171 — renamed `opaque_fragment` in r152;
+> a literal `.replace()` silently no-ops and the flicker never renders, while AC-D08 still passes),
+> **+1 from the perf prototype** = **10 blockers**. Verdict was MAJOR **by process, not by vision**:
+> **5 of the 8 review blockers were introduced by round-6's own same-session fixes** (6 of 10 counting
+> the addendum), so the creative-director ruled **no further same-session fixing on this document — no
+> exceptions for "cheap" items**. Root cause named: **Formula 2 had been the primary blocker in 6 of 7
+> rounds** and had to be rebuilt once from its real data sources, not patched a fifth time.
+>
+> **CLOSED by the 2026-08-01 Formula 2 rebuild (3 of 10):** blocker 1 (`f_cov` has no data source —
+> `f_cov`, `ρ_base_eff` and `min_coverage_fraction` are deleted, and the baseline is now the tile's own
+> **measured** sealed-point count); blocker 3 (the cost bound stated no tuning assumption — the derived
+> arithmetic is deleted outright, replaced by a normative per-frame bound and AC-D11); and the perf
+> prototype's blocker (the 31–37 ms un-amortized pass — now subsampled and swept across frames, bounded
+> at 2,048 points/frame at defaults). Also closed en route: the round-4 recommended "ρ_base nominal vs
+> runtime D" item, the round-4 recommended joint `k_noise ≥ 1/√ρ_base` guard (re-homed onto the sample
+> size, AC-D09), and the recommended "surface the frustum gate's attention-proxy role". Two defects were
+> found *by* the rebuild and fixed in it: the activity gate said "intersects the frustum" when it must
+> say **fully inside** (an edge-straddling tile read as a large false deficit on every sweep — AC-D12),
+> and `k_noise`'s Poisson rationale was false under a measured baseline (restated as a sensitivity
+> coefficient; every number unchanged). **The perf claim is closed by design, not by measurement — Open
+> Q#7's prototype must be re-run against the rebuilt formula before AC-P01 is believed.**
+>
+> **STILL OPEN (7 of 10), untouched here, for CD track 3:** blockers 2 (Formula 1b guard overshoot),
+> 4 (`toneMapped=false` asymmetry), 5 (AC-P01 window (c) backwards + unbarred), 6 (`ghost_decimation_stride`
+> spawn-time-only), 7 (`flicker_rate` violates accessibility A-V3), 8 (Level Design dependency undeclared),
+> and the Formula 5 `output_fragment`/`opaque_fragment` addendum — plus the 6 remaining recommended items.
 >
 > **ADR-blocking prototypes have now been RUN (2026-07-26):**
 > - **Open Q#1 (occluder depth-cull) — GATE PASS.** 100% cull inside the silhouette, zero colour written,
@@ -19,12 +40,14 @@
 >   GDD's risk model: rendering is a non-issue (136 avg FPS with 3M points + jitter/flicker over the whole
 >   merged buffer), but **Formula 2's CPU sampling pass costs 31–37 ms per pass** — ~2× the entire frame
 >   budget, as one un-amortized lump every 0.5 s — on hardware *faster* than min-spec. AC-P01's max-frame
->   bar is unmeetable with Formula 2 as specified on any hardware.
+>   bar was unmeetable with Formula 2 **as specified at the time** on any hardware. *(Addressed by the
+>   2026-08-01 rebuild — the pass no longer exists in that form. Re-run required before the numbers are
+>   claimed; AC-P01's own text is untouched and still carries blocker 5.)*
 >
 > Full detail, including what the prototypes did **not** settle, in
 > `design/gdd/reviews/point-cloud-renderer-review-log.md`. **Do NOT self-approve.**
 > **Author**: magatron02 + agents
-> **Last Updated**: 2026-07-25 (content) · 2026-07-26 (status only — no content revised)
+> **Last Updated**: 2026-08-01 (Formula 2 rebuilt — CD track 2; Formula 1b, Tuning Knobs and AC-D02/D02b/D06 updated with it, AC-D09–D12 added. Nothing else in this document was touched.)
 > **Implements Pillar**: Diegetic Matterport UI · Horror from familiar made wrong
 
 ## Overview
@@ -250,24 +273,28 @@ The entity_spike_density formula is defined as:
 
 `N_spike = floor( A_spike × ρ_base_local × M_spike )`
 
-where `ρ_base_local` is the local tile's own baseline density (`D × W_s` for the surface the
-spike sits on — the same value Formula 2 calls `ρ_base`), so a spike's "impossible density" is
-always relative to its surroundings, not a fixed absolute count.
+where `ρ_base_local` is the **nominal** density of the surface the spike sits on (`D × W_s` from
+Formula 1), so a spike's "impossible density" is always relative to its surroundings, not a fixed
+absolute count. *(This is a predicted value, used to size the cluster at spawn — it is **not**
+Formula 2's `ρ_base`, which since the 2026-08-01 rebuild is the tile's own **measured** sealed-point
+count. The two agree for a fully-sealed tile and diverge for a partially-sealed one; Formula 1b
+wants the nominal value either way, because it is sizing geometry, not detecting it.)*
 
 **Variables:**
 | Variable | Symbol | Type | Range | Description |
 |---|---|---|---|---|
 | Spike footprint area | A_spike | float | 0.25–4.0 m² | Cluster's occupied area — tuning knob, default 1.0 |
-| Local baseline density | ρ_base_local | float | = D × W_s | Same value as Formula 2's `ρ_base` for the spike's surface |
+| Local baseline density | ρ_base_local | float | = D × W_s | **Nominal** density of the spike's surface (Formula 1). Distinct from Formula 2's **measured** per-tile `ρ_base` |
 | Spike density multiplier | M_spike | float | 2.0–6.0 | "How impossible" the cluster reads — tuning knob, default 3.0 |
 | Output | N_spike | int | ≥1 | Point count for the ENTITY_SPIKE cluster |
 
 **Output range:** N_spike ≥ 1 (floor-clamped, same defensive guard as Formula 1's N).
 
 **Example:** floor tile, D=900, W_s=1.2 (ρ_base_local = 1,080), A_spike=1.0, M_spike=3.0 →
-N_spike = floor(1.0 × 1,080 × 3.0) = 3,240 pts. Against Formula 2's default `A_tile`=1.0 (denom
-= 900×0.10×1 = 90, threshold σ=2.5 → ≈225-pt deviation needed), a 3,240-pt addition trivially
-registers as a spike — satisfying the existing detection contract without further tuning.
+N_spike = floor(1.0 × 1,080 × 3.0) = 3,240 pts. That same fully-sealed floor tile *measures*
+`ρ_base` = 1,080 in Formula 2 at the default `A_tile` = 1.0 (denominator = 1,080×0.10×1 = 108,
+threshold σ=2.5 → ≈270-pt deviation needed), so a 3,240-pt addition trivially registers as a spike —
+satisfying the existing detection contract without further tuning.
 
 **Combined layer budget (round-6 addition, performance-analyst finding):** `density_budget_ceiling`
 (Formula 1, above) bounds BASE alone. Because only one entity type is active at a time (Entity
@@ -289,74 +316,175 @@ The anomaly_density_sigma formula is defined as:
 
 `σ = ( ρ_obs − ρ_base ) / ( ρ_base × k_noise × √(A_ref / A_tile) )`
 
+> **REBUILT 2026-08-01 (CD track 2 — rebuilt once, from data sources up).** The formula *shape* and
+> every worked number below are unchanged. What changed is **where the two densities come from**.
+> Rounds 4–7 each patched `ρ_base` with a term whose data source did not exist yet (visible-set
+> semantics → layer set → tile activity → `f_cov`), which is why this formula was the primary blocker
+> in 6 of 7 rounds. Both densities are now read from data the renderer already holds.
+> **`f_cov`, `ρ_base_eff` and the `min_coverage_fraction` knob are DELETED** — every case they were
+> invented to handle is handled by the measured baseline below. The round-7 prototype's measured
+> **31–37 ms sampling pass** (≈2× the whole frame budget) is addressed by subsampling + a per-frame
+> sweep, also below.
+
+**The detection tile index (normative — the one data structure this formula requires):** the renderer
+maintains a spatial bin per detection tile (`A_tile` m², axis-aligned) holding the indices of the
+`BASE` and `ENTITY_SPIKE` points inside it, plus two counts: `N_base` (sealed BASE points) and
+`N_res` (`N_base` + any ENTITY_SPIKE points currently in the tile). Bins are written at the moments
+points are: when a node's capture arc completes and its points are sealed into BASE (Core Rule 7),
+when BASE is rebuilt on `floorplan:update`, and when an ENTITY_SPIKE cluster spawns or despawns.
+**The index is built incrementally and is never required to complete within a single frame** — a tile
+whose bin is not yet built is simply not active. This is the resolution of the prototype's measured
+**87 ms full index build** against AC-E04's same-frame BASE rebuild: BASE geometry is replaced in one
+frame, the index catches up over subsequent frames, and detection resumes tile by tile as it does.
+`ENTITY_GHOST` is never binned (excluded from ρ_obs — see Sampling space).
+
+**Baseline density (normative — measured, not predicted):**
+
+`ρ_base = N_base / A_tile`
+
+This is the density the tile **actually holds in the buffer**, not the density config predicts it
+should hold. `ρ_base` is no longer `D × W_s`. Consequences — each of these was a separately-filed
+defect under the predicted baseline:
+
+- An **unscanned** tile has `N_base = 0`, fails the activity gate below, and cannot false-fire.
+  (Round-5's confirmed σ ≈ −10.0 model failure — the detector screaming "void" across the unexplored
+  map — is structurally impossible now, not compensated for.)
+- A **partially-sealed** tile (one of a room's nodes complete, another not) reads its own real
+  baseline, and `ρ_obs` matches it → σ ≈ 0. **No per-tile spatial coverage fraction is needed, or
+  invented.** (Round-7 blocker 1: `f_cov` had no data source.)
+- A tile that legitimately holds **fewer points than `D × W_s × A_tile`** — straddling a room
+  boundary, or split across surfaces with different `W_s` — reads correctly instead of as a permanent
+  deficit. (Not previously filed; it was latent in every predicted-baseline version.)
+- `ρ_base` follows Formula 1's **auto-scale-down** and any `floorplan:update` automatically, because
+  it is read from the buffer rather than from config. (Round-4 recommended item 1b, "ρ_base
+  nominal-vs-runtime binding underspecified", closed.)
+
 **Sampling space (normative — which layers count):** ρ_obs is measured over the points that are
-**camera-visible and not occluded** in the current view — not over raw `BufferGeometry` data.
-The counted set is the **additive detection layers**: `BASE` **and `ENTITY_SPIKE`**. This is
-load-bearing and was the round-3 fix: because `ENTITY_SPIKE` is a permanently separate layer that
-never merges into BASE (Core Rule 2), a sampler that counted BASE alone would leave a Type B spike
-invisible to the detector (ρ_obs unchanged → σ ≈ 0 → no event). Counting `BASE + ENTITY_SPIKE` is
-what lets a Type B spike register as a positive deviation, symmetric to how the VOID_MASK occluder
-lets a Type A void register as a deficit (the occluder leaves the buffer intact per Core Rule 6 but
-removes points from the visible set, so a tile covering the silhouette reads a density deficit).
-**`ENTITY_GHOST` (Type C) is deliberately EXCLUDED from ρ_obs** — the Type C tell is geometric/
-visual (an offset second room the player perceives directly), not a density-anomaly event; counting
-its 15%-opacity duplicate points would flood the scene with spurious room-wide positive-σ events.
-Type C therefore fires no `renderer:anomaly_density` event by design.
+**camera-visible and not occluded** in the current view. The counted set is the **additive detection
+layers**: `BASE` **and `ENTITY_SPIKE`**. This is load-bearing and was the round-3 fix: because
+`ENTITY_SPIKE` is a permanently separate layer that never merges into BASE (Core Rule 2), a sampler
+that counted BASE alone would leave a Type B spike invisible to the detector (ρ_obs unchanged →
+σ ≈ 0 → no event). Counting `BASE + ENTITY_SPIKE` is what lets a Type B spike register as a positive
+deviation, symmetric to how the VOID_MASK occluder lets a Type A void register as a deficit (the
+occluder leaves the buffer intact per Core Rule 6 but removes points from the visible set, so a tile
+covering the silhouette reads a density deficit). **`ENTITY_GHOST` (Type C) is deliberately EXCLUDED
+from ρ_obs** — the Type C tell is geometric/visual (an offset second room the player perceives
+directly), not a density-anomaly event; counting its 15%-opacity duplicate points would flood the
+scene with spurious room-wide positive-σ events. Type C therefore fires no `renderer:anomaly_density`
+event by design.
 
-**Sampling mechanism (normative — CPU-side approximation, no GPU readback):** visibility is
+**Active detection tiles (normative — the gate):** a tile is *active* iff **all four** hold:
+
+1. **Its bin exists** — the index has been built for it (see above).
+2. **Its AABB lies entirely inside the camera frustum** — *fully* inside, not merely intersecting.
+   A tile straddling the frustum edge has most of its points failing the frustum test for a reason
+   that has nothing to do with an entity, and would read as a large false deficit on every sweep, at
+   every screen edge. *(Round-6 and earlier said "intersects"; that was wrong.)*
+3. **Its centre is within `anomaly_sample_radius`** of the camera (tuning knob, default 12 m).
+4. **`N_base ≥ N_min`**, where **`N_min = ceil(1 / k_noise²)`** (= 100 at the default
+   `k_noise = 0.10`). A tile with fewer sealed points than this cannot support the sensitivity model —
+   one culled point out of five is a 20% deficit — so it is not sampled. **This single gate replaces
+   `min_coverage_fraction`, the unscanned-tile exclusion, AND the joint `k_noise ≥ 1/√ρ_base` guard
+   open since round 4.** All three were the same requirement stated three ways. It is also this
+   formula's division-by-zero guard: `ρ_base = 0` cannot reach the denominator because such a tile is
+   never sampled.
+
+The frustum condition is also, deliberately, an **attention proxy**: the renderer confirms only
+anomalies the player could be looking at. It is *not* a pure proximity gate — a specialist misread it
+as one in round 7, and it is the reason the confirmation dwell below is reachable rather than
+vacuous.
+
+**Sampling mechanism (normative — CPU-side, subsampled, swept across frames):** visibility is
 determined on the CPU, never by reading back the GPU depth buffer (`gl.readPixels` / occlusion
-queries stall the pipeline synchronously and are prohibited here). For each **active detection
-tile** (defined below) the renderer counts its `BASE + ENTITY_SPIKE` points that (a) pass a
-frustum test against the current camera and (b) are not blocked by any active VOID_MASK occluder
-— the latter tested geometrically (point-to-camera segment vs. the occluder capsule(s)), the same
-capsule data the renderer already holds. This is an **approximation** of true rendered visibility
-(it ignores point-vs-point self-occlusion, which is negligible for a sparse cloud), and it is the
-authoritative definition of ρ_obs. It runs once per `anomaly_sample_interval` (tuning knob,
-default 0.5 s), never per frame.
+queries stall the pipeline synchronously and are prohibited here).
 
-**Active detection tiles (normative — bounds the cost claim):** a tile is *active* iff it (a)
-intersects the current camera frustum AND (b) lies within `anomaly_sample_radius` (tuning knob,
-default 12 m) of the camera. Tiles outside the frustum or beyond that radius are never sampled.
-This is what makes the cost bound real: without it, "all populated tiles" at ceiling density
-would degenerate into a ~1.5M-point main-thread pass every 0.5 s — the exact source of the frame
-spikes AC-P01 guards against. With it, cost scales with `(active-tiles × points-per-tile ×
-active-occluders)`, not with total scene point count.
+For each active tile the renderer inspects `n = min(N_res, anomaly_tile_samples)` of its binned
+points — **not all of them** — taking every `floor(N_res / n)`-th index in the bin: a **systematic
+stride, never RNG**, so the pass is deterministic and unit-testable (coding-standards' determinism
+rule) and the reads are cache-coherent. Each inspected point is tested for (a) frustum inclusion and
+(b) obstruction by any active VOID_MASK occluder — the latter geometrically (point-to-camera segment
+vs. the occluder capsule(s)), the same capsule data the renderer already holds. With `k` of the `n`
+inspected points visible:
 
-**Baseline density conditioned on scan coverage (normative, round-6 fix):** `ρ_base` as defined
-below (`D × W_s`) is the density a tile would show **if fully scanned**. Core Rule 7 means BASE
-only gains points for a tile once the owning scan node's capture arc completes (`scan:complete`)
-— so an unscanned or partially-scanned tile has genuinely lower rendered density than a
-fully-scanned one, for reasons that have nothing to do with an entity. Sampling such a tile
-against the full `ρ_base` produces a large false deficit — an unscanned tile computes σ ≈ −10.0
-at defaults (see worked example below), over 2× the magnitude of a real Type A void's σ ≈ −4.0
-— meaning ordinary unexplored geometry constantly false-fires as a "void" throughout most of a
-playthrough. This was round-5's confirmed model-level blocker; this is the fix.
+`ρ_obs = ( N_res × k / n ) / A_tile`
 
-Each active detection tile therefore carries a **coverage fraction** `f_cov ∈ [0, 1]` — the
-fraction of the tile's area backed by completed scan data, sourced from the same per-node
-`scan:complete` state the renderer already consumes to seal BASE geometry (Interactions) — no
-new upstream event required. The tile's *effective* baseline becomes `ρ_base_eff = f_cov ×
-ρ_base`, substituted for `ρ_base` everywhere in the σ formula below. Tiles with `f_cov` at or
-below `min_coverage_fraction` (tuning knob, default 0.05) are excluded from the active set
-entirely — not sampled — both because there's nothing to detect yet and to avoid numerical
-instability from dividing by a near-zero effective baseline. A tile with `min_coverage_fraction <
-f_cov < 1` (straddling a scan boundary) is sampled normally against its scaled `ρ_base_eff`:
-because `ρ_obs` in that tile is naturally lower in the same proportion (only the scanned portion
-has points), the ratio correctly reads σ ≈ 0 for an ordinary partially-scanned tile, not a false
-deficit (see AC-D02b). `f_cov = 1` (fully scanned) reduces to the original formula unchanged —
-every worked example below assumes a fully-scanned tile (`f_cov = 1.0`) and is unaffected.
+This remains an **approximation** of true rendered visibility (it ignores point-vs-point
+self-occlusion, negligible for a sparse cloud) and it is the authoritative definition of ρ_obs.
+Inspecting *every* point is what the round-7 prototype measured at **31–37 ms per pass** — roughly 2×
+the entire frame budget, and the dominant cost in the whole system. Density estimation does not
+require every point.
+
+> `ponytail:` systematic stride over insertion order. Known ceiling: if BASE point insertion ever
+> becomes periodic in a way that resonates with the stride (e.g. strict per-surface interleaving at a
+> fixed period), the sample stops being representative. Upgrade path: a fixed-seed permutation of the
+> bin, which keeps determinism. Not needed at the current generation order (surface by surface).
+
+**Per-frame sweep (normative — no un-amortized lump):** the active set is swept at
+`anomaly_tiles_per_frame` (tuning knob, default 16) tiles per frame, so that every active tile is
+evaluated exactly once per `anomaly_sample_interval`. A tile's σ, its threshold test and its
+confirmation-dwell counter update **once per sweep**, not once per frame. **The renderer must never
+inspect more than `anomaly_tiles_per_frame × anomaly_tile_samples` points in a single frame** — 2,048
+at defaults. If the active set exceeds one interval's sweep capacity, the sweep continues into the
+next interval rather than bursting or skipping tiles: **the sweep rate is the hard bound; the
+interval is the target.**
+
+*Accepted approximation:* tiles are therefore sampled at different moments within an interval, so a
+moving entity's tell can lag by up to one `anomaly_sample_interval` (0.5 s at defaults) depending on
+where its tile falls in the sweep order. This is already inside the confirmation dwell's own 1.0 s
+window and below the tell's design latency; it is accepted, not compensated for.
+
+**Per-pass budget instead of derived arithmetic (normative absence):** this document deliberately
+states **no** worst-case points-per-pass arithmetic. Two rounds derived that number and both
+derivations broke (round-5's 1.77M; round-7's disputed 764k vs 2.12M — where the CD ruled *the
+disagreement itself was the finding*). The normative statement is the per-frame bound above. Proving
+that bound against the density budget, the tile count and the min-spec baseline belongs in the Point
+Cloud ADR, whose input is the round-7 prototype's **measured** 418 active tiles / ~530k resident
+points at default tuning.
 
 **Variables:**
 | Variable | Symbol | Type | Range | Description |
 |---|---|---|---|---|
-| Observed density | ρ_obs | float | 0–∞ pts/m² | Rendered (camera-visible, post-occlusion) density of `BASE + ENTITY_SPIKE` points in detection tile (ENTITY_GHOST excluded — see Sampling space) |
-| Baseline density | ρ_base | float | 50–3000 pts/m² | Expected density = D × W_s from Formula 1, **if fully scanned** (min legal product: 100 × 0.5). Substituted by `ρ_base_eff = f_cov × ρ_base` per-tile (see Baseline density conditioned on scan coverage, above). **Load-time guard**: D > 0 and every W_s > 0 are validated at config load; a config yielding ρ_base = 0 is rejected (division-by-zero guard, mirrors Floor Plan's load-time validation pattern) |
-| Coverage fraction | f_cov | float | 0–1 | Fraction of the tile's area backed by completed scan data (round-6 addition) — sourced from `scan:complete` state, not a tuning knob |
-| Min. coverage to sample | min_coverage_fraction | float | 0.01–0.15 | Tuning knob, default 0.05 — tiles at or below this `f_cov` are excluded from the active set (round-6 addition) |
-| Noise coefficient | k_noise | float | 0.05–0.30 | Natural variance model — tuning knob, default 0.10. **Load-time guard**: k_noise > 0 validated at config load; k_noise = 0 zeroes the denominator (→ ±∞/NaN σ) and is rejected (AC-D06) |
-| Tile area | A_tile | float | 0.5–4.0 m² (narrowed, round-6 — was 0.25–4.0) | Detection tile size — tuning knob, default 1.0. **Load-time guard**: A_tile > 0 validated at config load; A_tile ≤ 0 zeroes/undefines the denominator (√(A_ref/A_tile) is NaN for negative A_tile) and is rejected (AC-D06) |
-| Reference area | A_ref | float | const=1.0 m² | Normalization constant |
+| Observed density | ρ_obs | float | 0–∞ pts/m² | **Estimated** rendered (camera-visible, post-occlusion) density of `BASE + ENTITY_SPIKE` in the tile = `(N_res × k/n) / A_tile` (ENTITY_GHOST excluded — see Sampling space) |
+| Baseline density | ρ_base | float | 0–∞ pts/m² | **Measured** = `N_base / A_tile` — the tile's own sealed BASE point count. **Not `D × W_s`.** Tiles with `N_base < N_min` are excluded from the active set, which is this formula's division-by-zero guard |
+| Resident points in tile | N_res | int | ≥ 0 | Binned `BASE + ENTITY_SPIKE` point count |
+| Sealed BASE points in tile | N_base | int | ≥ 0 | Binned BASE point count — the baseline's data source |
+| Min. sealed count to sample | N_min | int | derived = `ceil(1/k_noise²)` | **Not a knob** — derived from `k_noise` (100 at default, 400 at the `k_noise` floor of 0.05) |
+| Points inspected per tile | n | int | = `min(N_res, anomaly_tile_samples)` | Systematic stride over the bin |
+| Visible among inspected | k | int | 0–n | Passed frustum ∧ not occluder-blocked |
+| Sensitivity coefficient | k_noise | float | 0.05–0.30 | Tuning knob, default 0.10 — **the fractional deviation from baseline that equals 1σ** (see restatement below). **Load-time guards**: `k_noise > 0` (zero zeroes the denominator → ±∞/NaN, AC-D06) and `anomaly_tile_samples ≥ ceil(1/k_noise²)` (AC-D09) |
+| Tile area | A_tile | float | 0.5–4.0 m² | Detection tile size — tuning knob, default 1.0. **Load-time guard**: `A_tile > 0` validated at load; `A_tile ≤ 0` zeroes/undefines the denominator (`√(A_ref/A_tile)` is NaN for negative `A_tile`) and is rejected (AC-D06) |
+| Reference area | A_ref | float | const = 1.0 m² | Normalization constant |
 | Output | σ | float | signed | Standard deviations from baseline |
+
+**What `k_noise` means after the rebuild (honest restatement, no numeric change):** under the old
+*predicted* baseline, `k_noise` modelled natural **Poisson** variance between a tile's expected and
+actual point count. With a **measured** baseline that variance is already inside `ρ_base` — a normal,
+fully-visible tile now reads σ = 0 *exactly*, not σ ≈ 0. `k_noise` is therefore a **sensitivity
+coefficient**: the relative deviation that counts as one standard deviation. Numerically nothing
+moves (at the default tile size σ = relative deviation ÷ `k_noise`), so every threshold, worked
+example, AC and downstream consumer is unaffected — only the rationale is now true. Its remaining
+noise sources are the subsample estimator (guarded below) and tile-boundary geometry, not Poisson
+counting.
+
+**Sampling-error guard (normative):** the estimator `k/n` has standard error `√(v(1−v)/n) ≤ 0.5/√n`,
+which in σ units is `0.5 / (k_noise·√n)`. Requiring **`anomaly_tile_samples ≥ ceil(1/k_noise²)`**
+(= `N_min`; 100 at default, 400 at the `k_noise` floor) holds that at or below **0.5σ** — a fifth of
+the 2.5σ default threshold, and the confirmation dwell then requires two consecutive breaches, making
+an estimator-driven false event vanishingly unlikely. Validated at load; a config violating it is
+rejected (AC-D09). *(This is the round-4 recommended `k_noise ≥ 1/√ρ_base` guard, open for four
+rounds, re-homed onto the quantity it actually constrains — the sample size, which is a knob, rather
+than the tile population, which is not.)*
+
+The `√(A_ref / A_tile)` denominator term (normalizes for tile size): a smaller tile holds
+proportionally fewer points, so both its largest possible sample and the quantization of `k/n` are
+coarser — a single culled point moves ρ_obs further. The expected-noise term must therefore **grow**
+as `A_tile` shrinks, hence `√(A_ref / A_tile)`. This raises the effective firing threshold for small
+tiles in proportion to their real estimator noise, suppressing false positives at fine resolution.
+*(The earlier `√(A_tile / A_ref)` form had this inverted — it made small tiles more trigger-happy,
+the opposite of the intent; corrected 2026-07-16. The direction is unchanged by this rebuild; only
+the justification moved from Poisson counting noise to sampling/quantization noise, which scales the
+same way.)* At the default `A_tile = A_ref = 1.0 m²` the term is exactly 1.0, so all default-tile
+examples and ACs are unchanged.
 
 **Event firing rule:**
 - σ is computed **signed internally** (positive = spike, negative = deficit) for the threshold
@@ -369,50 +497,47 @@ every worked example below assumes a fully-scanned tile (`f_cov = 1.0`) and is u
   (UI/HUD picks error-message intensity from magnitude) needs the direction; if a future feature
   genuinely does, restoring it must be a deliberate reviewed decision, not a latent leak.
 
-**Confirmation dwell (normative, round-6 addition):** a tile's `|σ|` must remain ≥
-`anomaly_sigma_threshold` for `anomaly_confirm_samples` (tuning knob, default 2) CONSECUTIVE
-sampling passes before the event fires — not on the first qualifying pass alone. This buys a beat
-of unconfirmed exposure between a real anomaly entering the sampled set and the game confirming
-it, so the renderer's own tell doesn't pre-empt the player's chance to notice first (Player
-Fantasy §B). If `|σ|` drops below threshold on any intervening pass, the consecutive count resets
-to 0. **Ordering constraint:** `anomaly_confirm_samples × anomaly_sample_interval` must be tuned
-so the confirming event cannot fire before NEAR-tier jitter (Formula 3) has been active for at
-least one full `anomaly_sample_interval` — escalation is sequenced (ambiguous doubt → confirmed
-witness), not just delayed. At defaults (2 samples × 0.5s = 1.0s) this holds trivially, since NEAR
-triggers as soon as the entity crosses 8.0m, well before a Type A tile at close range would
-typically be sampled. Re-tune together if either default changes.
-
-The `√(A_ref / A_tile)` denominator term (normalizes for tile size, Poisson counting noise):
-a tile of area `A_tile` at density `ρ_base` holds `N = ρ_base × A_tile` points, whose count
-has standard deviation `√N`, so the **density** standard deviation is `√(ρ_base / A_tile)` —
-i.e. natural density noise scales as `1 / √A_tile`. Smaller tiles therefore have *higher*
-relative variance, so the denominator (the expected-noise term) must **grow** as `A_tile`
-shrinks — hence `√(A_ref / A_tile)`, which grows as `A_tile` falls. This raises the effective
-firing threshold for small tiles proportionally to their real noise, suppressing noise-driven
-false positives. *(The earlier `√(A_tile / A_ref)` form had this inverted — it made small tiles
-more trigger-happy, the opposite of the intent; corrected 2026-07-16.)* At the default
-`A_tile = A_ref = 1.0 m²` the term is exactly 1.0, so all default-tile examples and ACs are
-unchanged by the correction.
+**Confirmation dwell (normative):** a tile's `|σ|` must remain ≥ `anomaly_sigma_threshold` for
+`anomaly_confirm_samples` (tuning knob, default 2) CONSECUTIVE **sweeps** before the event fires —
+not on the first qualifying sweep alone. This buys a beat of unconfirmed exposure between a real
+anomaly entering the sampled set and the game confirming it, so the renderer's own tell doesn't
+pre-empt the player's chance to notice first (Player Fantasy §B). If `|σ|` drops below threshold on
+any intervening sweep, the consecutive count resets to 0. **Ordering constraint:**
+`anomaly_confirm_samples × anomaly_sample_interval` must be tuned so the confirming event cannot fire
+before NEAR-tier jitter (Formula 3) has been active for at least one full `anomaly_sample_interval` —
+escalation is sequenced (ambiguous doubt → confirmed witness), not just delayed. At defaults
+(2 sweeps × 0.5 s = 1.0 s) this holds trivially, since NEAR triggers as soon as the entity crosses
+8.0 m, well before a Type A tile at close range would typically be swept. Re-tune together if either
+default changes.
 
 **Output range:** σ is unbounded (signed). Values above 5.0 indicate entity-tier
 anomaly. Values 2.5–5.0 are soft tells. Values below 2.5 are normal variance.
 
-**Example** (all at default `A_tile = 1.0 m²`, so `√(A_ref/A_tile) = 1.0`, denom = 900×0.10×1 = 90;
-`sigma` = emitted magnitude |σ|):
-- Type B spike: rendered ρ_obs=1350 (50% above baseline 900, counting `BASE + ENTITY_SPIKE`)
-  → σ = 450/90 = +5.0 → emit `{sigma: 5.0}` ✓
-- Type A void: rendered ρ_obs=540 (occluder culls 40% of the tile's points from the visible set)
-  → σ = −360/90 = −4.0 → emit `{sigma: 4.0}` (sign stripped — indistinguishable from a +4.0 spike) ✓
-- Normal noise: rendered ρ_obs=970 → σ = 70/90 ≈ 0.78 → |σ| < 2.5 → no event ✓
-- Tile-size sanity (Type B deviation +450 at `A_tile = 0.25 m²`): denom = 900×0.10×√(1/0.25) =
-  900×0.10×2 = 180 → σ = 450/180 = 2.5 — the *same* absolute deviation registers as a **weaker**
-  tell in a smaller tile, because a small tile's natural noise is larger. Correct direction ✓
-- **Coverage-conditioned examples (round-6 addition):** wholly unscanned tile (`f_cov = 0`,
-  below `min_coverage_fraction`) → excluded from the active set, never sampled, no event — this
-  is the case that used to compute a false σ ≈ −10.0 under the old (unconditioned) formula.
-  Half-scanned tile (`f_cov = 0.5`, no entity present): `ρ_base_eff = 0.5 × 900 = 450`; an
-  ordinary tile with only its scanned half populated reads `ρ_obs ≈ 450` → σ = 0/45 = 0.0 → no
-  event ✓ (denom scales with `ρ_base_eff`, so the noise floor shrinks proportionally too).
+**Examples** (all at default `A_tile = 1.0 m²`, so `√(A_ref/A_tile)` = 1.0, and
+`anomaly_tile_samples = 128`; `sigma` = emitted magnitude |σ|). The reference tile is a **wall** tile
+(`W_wall = 1.0`) at `D = 900`, fully sealed → `N_base = 900` **measured**, `ρ_base = 900 pts/m²`,
+denominator = 900 × 0.10 × 1 = 90:
+
+- **Type B spike:** an ENTITY_SPIKE cluster puts 450 points in the tile → `N_res` = 1,350, none
+  occluded → `k = n` → ρ_obs = 1,350 → σ = 450/90 = **+5.0** → emit `{sigma: 5.0}` ✓
+- **Type A void:** an active occluder blocks 40% of the tile's points from the visible set → of
+  `n = 128` inspected, `k = 77` pass (0.6016) → ρ_obs = 900 × 0.6016 ≈ 541 → σ ≈ **−3.98** → emit
+  `{sigma: 3.98}` (sign stripped — indistinguishable from a +3.98 spike) ✓ *(whole-tile inspection
+  gave exactly −4.0; the ±0.02 is the estimator's quantization, two orders below the threshold)*
+- **Normal tile:** nothing occluding, no spike → `k = n` → ρ_obs = ρ_base → σ = **0.0** exactly →
+  no event ✓ *(under the predicted baseline this case read σ ≈ 0 with Poisson scatter; under the
+  measured baseline it is exact)*
+- **Partially-sealed tile** (the case `f_cov` existed for): one of the two nodes contributing to the
+  tile has completed → `N_base = 450` measured → ρ_base = 450, denominator = 45; all 450 resident
+  points visible → ρ_obs = 450 → σ = **0.0** → no event ✓ **with no coverage fraction anywhere in the
+  model**
+- **Unscanned tile:** `N_base = 0 < N_min` (100) → not active, never swept, no event ✓
+- **Too-sparse tile:** legal-minimum tuning `D = 100`, `W_s = 0.5`, `A_tile = 0.5` → 25 sealed points
+  < `N_min` → not active ✓ *(this is the round-4 low-baseline noise-floor case, now excluded by
+  construction instead of by an unenforced guard)*
+- **Tile-size sanity** (Type B deviation +450 at `A_tile = 0.25 m²`, outside the current safe range —
+  shown for direction only): denominator = 900 × 0.10 × √(1/0.25) = 180 → σ = 450/180 = 2.5 — the
+  *same* absolute deviation registers as a **weaker** tell in a smaller tile. Correct direction ✓
 
 ---
 
@@ -689,13 +814,14 @@ This is a data-dependency pattern, not a circular dependency.
 | `density_budget_ceiling` | 1,500,000 pts | 500k–2M | GPU memory pressure on low-end hardware | D auto-scales too aggressively; rooms look bare |
 | `base_density_floor` | 100 pts/m² | 50–100 | Auto-scale can't reduce enough; large scenes rejected at load | D can scale toward zero; sparse/sub-1-point surfaces (defeats the AC-E01 guard) |
 | `surface_type_weights` | floor:1.2, wall:1.0, ceil:0.6 | 0.5–1.5 per surface | One surface dominates; imbalanced spatial read | Surface invisible at extreme low; rooms lose geometry |
-| `k_noise` (noise coefficient) | 0.10 | 0.05–0.30 | False positives in empty rooms; constant error messages | Entity anomalies require extreme deviation; tells too subtle |
-| `A_tile` (detection tile size) | 1.0 m² | 0.5–4.0 (narrowed, round-6 — was 0.25–4.0) | Loses spatial resolution; Type A silhouette unlocalizable | Threshold over-raised + low-count instability at fine resolution — genuine anomalies in a small tile struggle to register (Formula 2 normalizes per-tile noise via `√(A_ref/A_tile)`); also more tiles to sample. Narrowed floor: at the old 0.25 minimum combined with max `anomaly_sample_radius`, the sampling pass degenerated to ~1.77M points/pass (comparable to the whole scene budget) — see that knob's note |
+| `k_noise` (sensitivity coefficient) | 0.10 | 0.05–0.30 | Tells require large deviations; subtle anomalies never fire | Small estimator/geometry deviations fire events. **Also raises `N_min` and the required `anomaly_tile_samples` (both = `ceil(1/k_noise²)`)** — at the 0.05 floor a tile needs 400 sealed points to be sampled at all, which excludes most tiles at low `base_density` (Formula 2, AC-D09) |
+| `A_tile` (detection tile size) | 1.0 m² | 0.5–4.0 (narrowed, round-6) | Loses spatial resolution; Type A silhouette unlocalizable | Threshold over-raised + fewer sealed points per tile at fine resolution — genuine anomalies in a small tile struggle to register (Formula 2 normalizes per-tile estimator noise via `√(A_ref/A_tile)`), and more tiles fall below `N_min`; also more tiles to sweep |
 | `anomaly_sigma_threshold` | 2.5 σ | 1.5–4.0 | Entity must be very dense/close to trigger tells; horror subdued | Noise-driven events fire constantly in normal rooms |
-| `anomaly_sample_interval` | 0.5 s | 0.1–2.0 | Tells lag the entity's actual movement; feels unresponsive | Visible-space sampling pass runs too often; eats frame budget |
-| `anomaly_sample_radius` | 12 m | 6–15 (narrowed, round-6 — was 6–25) | Sampling pass touches more tiles/points per pass; cost climbs (Formula 2 "active tiles" bound loosens). Narrowed ceiling: combined with the old `A_tile` minimum, radius=25 degenerated the per-pass cost to ~1.77M points inspected on the main thread every 0.5s — comparable to the entire scene's point budget. At the new max (15m) with the new `A_tile` minimum (0.5), worst case is ~636k points across ~1,414 tiles — bounded, not scene-equivalent | Anomalies past the radius never register; distant tells go silent |
-| `min_coverage_fraction` | 0.05 | 0.01–0.15 | Very-lightly-scanned tiles get sampled anyway; noisy near-zero-baseline σ | Barely-scanned tiles are excluded too long; genuine early anomalies near a fresh scan go undetected |
-| `anomaly_confirm_samples` | 2 passes | 1–5 | Confirmation lags real anomalies; feels unresponsive, undercuts entity tells too | Fires on the very first qualifying pass; Anchor-moment pacing regresses to round-5's instant-confirm problem |
+| `anomaly_sample_interval` | 0.5 s | 0.1–2.0 | Tells lag the entity's actual movement; feels unresponsive | Sweep cannot cover the active set within one interval, so the effective interval stretches anyway (the sweep rate is the hard bound — Formula 2) |
+| `anomaly_sample_radius` | 12 m | 6–15 (narrowed, round-6) | More tiles in the active set, so a full sweep takes longer and tells lag; per-*frame* cost is unaffected (bounded by `anomaly_tiles_per_frame`) | Anomalies past the radius never register; distant tells go silent |
+| `anomaly_tile_samples` | 128 points | 64–512, **and ≥ `ceil(1/k_noise²)`** (rejected at load otherwise — AC-D09) | Per-frame sampling cost rises linearly with no accuracy benefit past the guard | Estimator noise approaches the firing threshold; below the guard the config is rejected at load |
+| `anomaly_tiles_per_frame` | 16 tiles | 4–64 | Bigger per-frame lump — at the top of the range this approaches the un-amortized pass the rebuild removed (prototype-measured 31–37 ms) | Sweep can't cover the active set within one `anomaly_sample_interval`; every tell lags |
+| `anomaly_confirm_samples` | 2 sweeps | 1–5 | Confirmation lags real anomalies; feels unresponsive, undercuts entity tells too | Fires on the very first qualifying sweep; Anchor-moment pacing regresses to round-5's instant-confirm problem |
 | `flicker_amplitude` (F_amp) | 0.4 | 0.0–0.6 | Points dim heavily during ADJACENT; approaches unreadable-black | No visible brightness disturbance; PROXIMITY_CORRUPTED loses its colour-channel tell (Formula 5) |
 | `flicker_rate` (F_rate) | 18 rad/s | 5–40 | Strobe-fast flicker; reads as a bug / accessibility risk | Slow pulse; reads as intentional breathing, not corruption |
 | `A_spike` (ENTITY_SPIKE footprint) | 1.0 m² | 0.25–4.0 | Cluster reads as a whole small room-feature rather than a point anomaly | Cluster too small to notice against BASE |
@@ -712,11 +838,20 @@ This is a data-dependency pattern, not a circular dependency.
 | `abort_fade_duration` | 0.15 s | 0.05–0.40 | Abort feels slow | Too abrupt; reads as a bug |
 
 **Interaction notes:**
-- `k_noise` and `A_tile`: Formula 2's `√(A_ref/A_tile)` term already compensates for the *Poisson*
-  component of per-tile variance, so `k_noise` (the fractional variance floor) no longer needs to
-  scale with tile size to first order. It remains a shared global sensitivity dial — raise it to
-  suppress any residual/non-Poisson noise across all tiles, lower it to make tells more sensitive
-  everywhere. Tune after the tile-size normalization, not against it.
+- `k_noise` and `A_tile`: Formula 2's `√(A_ref/A_tile)` term already compensates for tile size, so
+  `k_noise` does not need to scale with it. `k_noise` is a shared global **sensitivity** dial — the
+  relative deviation from a tile's measured baseline that counts as 1σ. Raise it to make tells
+  harder to trigger, lower it to make them more sensitive. Tune after the tile-size normalization,
+  not against it. *(Since the 2026-08-01 rebuild `k_noise` is no longer a Poisson-variance model —
+  the measured baseline already contains that variance. See Formula 2's restatement.)*
+- `k_noise`, `anomaly_tile_samples` and `base_density` are **coupled through `N_min =
+  ceil(1/k_noise²)`**: lowering `k_noise` raises both the sample size the config must supply and the
+  sealed-point count a tile must hold before it is sampled at all. At `k_noise = 0.05` with a low
+  `base_density`, large parts of the map become undetectable by construction. Check the pair
+  together, not separately.
+- `anomaly_tiles_per_frame` × `anomaly_tile_samples` is the **per-frame cost of the whole detector**
+  (2,048 points at defaults) and is the only quantity that touches the frame budget.
+  `anomaly_sample_radius` and `A_tile` change how long a full sweep takes, not what a frame costs.
 - `J_min`/`J_max` continuity: `J_min ADJACENT` is not a free knob — it is pinned to `J_max NEAR`
   to keep jitter continuous at the d=3.0m seam (Formula 3). Changing `J_max NEAR` requires changing
   `J_min ADJACENT` to match, or config validation rejects the set (AC-D05).
@@ -765,7 +900,7 @@ The renderer does not trigger UI directly.
 
 ## Acceptance Criteria
 
-33 criteria total (round-6: +5 — AC-C09, AC-C10, AC-D01b, AC-D02b, AC-ST06). Gate levels per coding-standards.md: Logic/Integration = BLOCKING, Visual/Performance = ADVISORY.
+37 criteria total (Formula 2 rebuild, 2026-08-01: +4 — AC-D09, AC-D10, AC-D11, AC-D12; AC-D02, AC-D02b and AC-D06 rewritten in place). Gate levels per coding-standards.md: Logic/Integration = BLOCKING, Visual/Performance = ADVISORY.
 
 > **BLOCKING criteria are scene-graph/data/buffer assertions, never subjective pixel reads.** Per
 > coding-standards.md "What NOT to Automate," visual *fidelity* is not automated: BLOCKING
@@ -819,11 +954,11 @@ GIVEN total point count at D = 900 would exceed 1,500,000 for the current room, 
 **AC-D01b — Budget ceiling reject-at-load when floor cannot fit (round-6 addition)**
 GIVEN total point count at `D = base_density_floor` (100) still exceeds `density_budget_ceiling` (1,500,000) for the current room set, WHEN the BASE layer attempts to build at session load, THEN the layout is rejected at load with an explicit error (no session starts with it) — the renderer does not silently scale D below `base_density_floor`, produce a partial/degenerate BASE layer, or render anything for that room set. **BLOCKING**
 
-**AC-D02 — Anomaly sigma event threshold (magnitude-only payload)**
-GIVEN A_tile = 1.0 m², k_noise = 0.10, ρ_base = 900 pts/m², f_cov = 1.0 (fully scanned), and ρ_obs measured over `BASE + ENTITY_SPIKE` points (ENTITY_GHOST excluded), WHEN rendered ρ_obs = 1,350 (internal σ = +5.0, Type B spike), THEN renderer emits exactly one `renderer:anomaly_density {sigma}` with `sigma ≈ 5.0` (±0.01) and the payload contains **no type/label field and no sign** (`sigma ≥ 0`); WHEN rendered ρ_obs = 540 (internal σ = −4.0, Type A deficit), THEN exactly one event with `sigma ≈ 4.0` (magnitude — indistinguishable from a +4.0 spike, sign stripped per the round-3 type-oracle fix); WHEN rendered ρ_obs = 970 (|σ| ≈ 0.78), no event is emitted. All three cases additionally require `anomaly_confirm_samples` (default 2) consecutive qualifying passes before firing (see AC-D02b's sibling confirmation-dwell behaviour). **BLOCKING**
+**AC-D02 — Anomaly sigma event threshold (magnitude-only payload) — rewritten for the measured baseline (2026-08-01)**
+GIVEN `A_tile` = 1.0 m², `k_noise` = 0.10, `anomaly_tile_samples` = 128, and a fully-sealed tile whose bin holds `N_base` = 900 BASE points (so the **measured** `ρ_base` = 900 pts/m², denominator = 90), with ρ_obs estimated over `BASE + ENTITY_SPIKE` (ENTITY_GHOST excluded) — WHEN an ENTITY_SPIKE cluster places 450 points in the tile and none are occluded (`N_res` = 1,350, `k = n`, estimated ρ_obs = 1,350, internal σ = +5.0), THEN the renderer emits exactly one `renderer:anomaly_density {sigma}` with `sigma ≈ 5.0` (±0.05) and the payload contains **no type/label field and no sign** (`sigma ≥ 0`); WHEN an active VOID_MASK occluder blocks 40% of the tile's points so that `k` = 77 of `n` = 128 inspected points are visible (estimated ρ_obs ≈ 541, internal σ ≈ −3.98), THEN exactly one event with `sigma ≈ 3.98` (±0.05) — magnitude only, indistinguishable from a positive deviation of equal size (sign stripped per the round-3 type-oracle fix); WHEN nothing is occluded and no spike is present (`k = n`, ρ_obs = ρ_base), THEN σ = 0.0 **exactly** and no event is emitted. Both firing cases additionally require `anomaly_confirm_samples` (default 2) consecutive qualifying **sweeps** before firing (see AC-D02b). **BLOCKING**
 
-**AC-D02b — Unscanned/partially-scanned tiles do not false-fire; confirmation dwell holds (round-6 addition)**
-GIVEN a tile with f_cov = 0 (wholly unscanned, at or below `min_coverage_fraction`), WHEN a sampling pass runs, THEN the tile is excluded from the active set and no event is evaluated for it; GIVEN a tile with f_cov = 0.5 and ρ_obs at exactly half of the surface's full ρ_base (the expected value for an evenly-scanned-half tile with no entity present), THEN σ ≈ 0 (computed against `ρ_base_eff = 0.5 × ρ_base`) and no event fires; GIVEN a tile crosses `|σ| ≥ anomaly_sigma_threshold` on one sampling pass but drops below it on the next, THEN no `renderer:anomaly_density` event fires (the consecutive-pass counter reset, `anomaly_confirm_samples` never satisfied). **BLOCKING**
+**AC-D02b — Unsealed, sparse and partially-sealed tiles do not false-fire; confirmation dwell holds — rewritten for the measured baseline (2026-08-01)**
+GIVEN `k_noise` = 0.10 (so `N_min` = 100): WHEN a sweep reaches a tile whose owning scan node has not completed (`N_base` = 0), THEN the tile is not in the active set, no σ is evaluated for it, and no event is emitted; WHEN a sweep reaches a tile holding only 25 sealed points (`N_base` = 25 < `N_min`), THEN likewise excluded — no σ, no event; GIVEN a tile fed by two scan nodes of which only one has completed, so `N_base` = 450 with no entity present and every resident point visible, THEN the measured `ρ_base` = 450, ρ_obs = 450, σ = **0.0**, and no event fires — **the baseline is the tile's own sealed count, and no coverage fraction is computed anywhere**; GIVEN a tile crosses `|σ| ≥ anomaly_sigma_threshold` on one sweep but drops below it on the next, THEN no `renderer:anomaly_density` event fires (the consecutive-sweep counter reset, `anomaly_confirm_samples` never satisfied). **BLOCKING**
 
 **AC-D03 — Jitter magnitude is quadratic, not linear; deterministic uniform; cache-key isolated; no jitter on materializing layer**
 GIVEN PROXIMITY_DISTURBED (NEAR: d_min=3.0m, d_max=8.0m, J_max=0.020m), WHEN the per-frame `uJitter` uniform (= J from Formula 3, computed CPU-side from `d` — see Formula 3's Distance source) is inspected, THEN at d = 5.0m (t=0.40) `uJitter ≈ 0.0072` (±10%) and at d = 3.5m (t=0.10) `uJitter ≈ 0.0162` (±10%); AND the per-frame `uEntityPos` uniform matches the cached entity position (from `entity:spawn` for Type A or the latest `entity:position` for Type B/C) within one frame of any update. *(The assertion is on the deterministic CPU-side `uJitter`/`uEntityPos` uniform values, NOT observed per-point GPU displacement — actual displacement is `uJitter × hash × noise(uTime)`, which is per-point and `uTime`-dependent and therefore not headlessly assertable per coding-standards' Determinism rule; the visible quadratic ramp is ADVISORY screenshot evidence.)* AND the jittered BASE material returns a `customProgramCacheKey()` distinct from ENTITY_SPIKE's and ENTITY_GHOST's (so the injected jitter program is not shared/dropped). AND materializing overlay points receive `uJitter` influence of 0 (they are outside BASE — 0×anything = 0). **BLOCKING**
@@ -834,8 +969,20 @@ GIVEN SCAN_MATERIALIZING with T = 0.5s, h = 0.25, WHEN time elapses from frame s
 **AC-D05 — Jitter band bounds and continuity validated at load**
 GIVEN a proximity-tier config with `d_min = d_max` (or `d_min > d_max`) for any tier, OR with any tier's `J_min > J_max`, OR where a tier's `J_min` does not equal the next-tier-out's `J_max` (the cross-tier continuity invariant from Formula 3), WHEN config validation runs at load, THEN the config is rejected with an explicit error (no session starts with it); GIVEN the default bands and jitter floors (NEAR d 3.0–8.0m / J 0.000→0.020m, ADJACENT d 0.0–3.0m / J 0.020→0.180m), THEN load succeeds normally and jitter is continuous at the d=3.0m seam. **BLOCKING**
 
-**AC-D06 — Formula 2 denominator division-by-zero guarded at load (all three factors, negative values included — round-6 widened)**
-GIVEN a config with `D ≤ 0` or any `surface_type_weights` entry `≤ 0` (ρ_base ≤ 0), OR `k_noise ≤ 0`, OR `A_tile ≤ 0` — zero zeroes/undefines the denominator `ρ_base × k_noise × √(A_ref/A_tile)`, and a negative `A_tile` additionally makes `√(A_ref/A_tile)` undefined (NaN) even before the multiplication — WHEN config validation runs at load, THEN the config is rejected with an explicit error; GIVEN the defaults (D=900, weights 1.2/1.0/0.6, k_noise=0.10, A_tile=1.0), THEN load succeeds and Formula 2 never divides by zero or produces NaN. *(Round-6: widened from `= 0` to `≤ 0` — the prose guard above already required `> 0`, but the AC only tested the zero case, leaving negative values untested.)* **BLOCKING**
+**AC-D06 — Formula 2 denominator division-by-zero guarded (load-time knobs + runtime baseline) — rewritten for the measured baseline (2026-08-01)**
+GIVEN a config with `k_noise ≤ 0` OR `A_tile ≤ 0` — zero zeroes/undefines the denominator `ρ_base × k_noise × √(A_ref/A_tile)`, and a negative `A_tile` additionally makes `√(A_ref/A_tile)` undefined (NaN) even before the multiplication — WHEN config validation runs at load, THEN the config is rejected with an explicit error; GIVEN a config with `D ≤ 0` or any `surface_type_weights` entry `≤ 0`, THEN it is likewise rejected at load, **now as a Formula 1 geometry guard** (a zero or negative density generates no valid point set) rather than as a Formula 2 denominator guard — since the rebuild, `D` and `W_s` no longer feed Formula 2's denominator at all; GIVEN the defaults (D=900, weights 1.2/1.0/0.6, k_noise=0.10, A_tile=1.0), THEN load succeeds. AND — the runtime half of the same guard — GIVEN any tile with `N_base` = 0 (so a measured `ρ_base` of 0), WHEN a sweep runs, THEN that tile is excluded by the `N_base ≥ N_min` activity gate and `ρ_base = 0` is never substituted into the denominator, so Formula 2 cannot divide by zero or produce NaN from a runtime baseline either. **BLOCKING**
+
+**AC-D09 — Sample size must satisfy the sensitivity coefficient (load-time guard, 2026-08-01)**
+GIVEN a config with `anomaly_tile_samples < ceil(1 / k_noise²)` — e.g. `anomaly_tile_samples` = 128 with `k_noise` = 0.05, which requires 400 — WHEN config validation runs at load, THEN the config is rejected with an explicit error naming **both** knobs and the required minimum; GIVEN the defaults (`anomaly_tile_samples` = 128, `k_noise` = 0.10, requiring 100), THEN load succeeds. *(This is the round-4 recommended `k_noise ≥ 1/√ρ_base` guard, re-homed onto the sample size — the quantity that is actually a knob.)* **BLOCKING**
+
+**AC-D10 — Subsample estimator: deterministic, and accurate against a known visible fraction (2026-08-01)**
+GIVEN a tile whose bin holds `N_res` = 1,000 points of which exactly 600 pass the visibility test, and `anomaly_tile_samples` = 128, WHEN the sweep evaluates that tile twice with identical camera and occluder state, THEN both evaluations inspect the **same** 128 point indices (systematic stride over the bin — no RNG anywhere in the pass) and produce **bit-identical** σ; AND the estimated ρ_obs is within ±10% of the true visible density (600 / `A_tile`); AND `n` = `min(N_res, anomaly_tile_samples)`, so a tile holding fewer points than `anomaly_tile_samples` is inspected exhaustively rather than over-sampled. **BLOCKING**
+
+**AC-D11 — Per-frame sampling bound and sweep completeness (2026-08-01)**
+GIVEN an active set of 418 tiles with `anomaly_tiles_per_frame` = 16, `anomaly_tile_samples` = 128 and `anomaly_sample_interval` = 0.5 s, WHEN the renderer runs for 30 consecutive frames (one interval at 60 fps), THEN **no single frame inspects more than 2,048 points** (`anomaly_tiles_per_frame × anomaly_tile_samples`) and no frame performs a whole-active-set pass; AND every tile in the active set is evaluated at least once within 27 frames (⌈418/16⌉); AND each tile's confirmation-dwell counter advances at most once per sweep, not once per frame. *(This AC is the replacement for the deleted worst-case points-per-pass arithmetic — it bounds the cost by assertion instead of by derivation. It is also the direct answer to the round-7 prototype's measured 31–37 ms un-amortized pass.)* **BLOCKING**
+
+**AC-D12 — Frustum-straddling tiles are excluded, not sampled (2026-08-01)**
+GIVEN a fully-sealed tile with no entity present and every resident point in the buffer, positioned so its AABB **straddles** the camera frustum boundary (some corners inside, some outside), WHEN a sweep runs, THEN the tile is not in the active set and no σ is evaluated for it — it must not read as a deficit merely because part of it is off-screen; GIVEN the camera then rotates so the same tile's AABB lies entirely inside the frustum, THEN the tile becomes active and reads σ = 0.0 with no event. **BLOCKING**
 
 **AC-D07 — Formula 4 (scan opacity) denominator division-by-zero guarded at load**
 GIVEN a config with `T ≤ 0` or `h ≥ 1` — either of which zeroes the denominator `(1−h)×T` in Formula 4 — WHEN config validation runs at load, THEN the config is rejected with an explicit error; GIVEN the defaults (T=0.5s, h=0.25), THEN load succeeds and Formula 4 never divides by zero. **BLOCKING**
@@ -859,11 +1006,11 @@ GIVEN PROXIMITY_CORRUPTED (ADJACENT: J_min=0.020m, J_max=0.180m) and SCAN_MATERI
 **AC-E04 — BASE rebuild is single-frame; entity layers persist**
 GIVEN a mid-session `floorplan:update` event with new AABB dimensions, WHEN the renderer processes it, THEN old BASE geometry is replaced and new geometry is visible within the same frame (no frame with zero BASE points); entity layers remain at their previous world positions unchanged; no console error thrown. **BLOCKING**
 
-**AC-E05 — Two anomaly events in one sampling pass fire independently (no renderer throttle)**
-GIVEN two separate detection tiles both cross `anomaly_sigma_threshold` in the same sampling pass, WHEN the renderer processes that pass, THEN it emits exactly two independent `renderer:anomaly_density {sigma}` events (one per tile), neither merged nor rate-limited by the renderer — deduplication/throttling is the subscriber's responsibility, not the renderer's. **BLOCKING**
+**AC-E05 — Two anomaly events in one sweep fire independently (no renderer throttle)**
+GIVEN two separate detection tiles both cross `anomaly_sigma_threshold` within the same sweep — whether the sweep reaches them on the same frame or on different frames, since the sweep is spread across frames (Formula 2) — WHEN the renderer evaluates each, THEN it emits exactly two independent `renderer:anomaly_density {sigma}` events (one per tile), neither merged nor rate-limited by the renderer — deduplication/throttling is the subscriber's responsibility, not the renderer's. **BLOCKING**
 
 **AC-E06 — Duplicate scan:capture_frame for an already-sealed node does not crash**
-GIVEN a node whose points are already sealed into BASE, WHEN a duplicate `scan:capture_frame` for that node arrives, THEN the renderer adds a new materialization overlay on top of the existing BASE data with no thrown error; the elevated density in that tile subsequently produces a positive-σ `renderer:anomaly_density` event at the next sampling pass (reads as a ghost artefact — acceptable, not a crash case). **BLOCKING**
+GIVEN a node whose points are already sealed into BASE, WHEN a duplicate `scan:capture_frame` for that node arrives, THEN the renderer adds a new materialization overlay on top of the existing BASE data with no thrown error, and the tile renders visibly denser (the duplicate points are drawn — a ghost artefact, acceptable, not a crash case); AND WHEN those duplicate points subsequently seal into BASE on `scan:complete`, THEN **no** `renderer:anomaly_density` event fires for that tile, because the tile's measured `ρ_base` (`N_base / A_tile`) rises in lockstep with its resident count, leaving σ ≈ 0. *(Changed by the 2026-08-01 rebuild — this AC previously asserted a positive-σ event. Under a measured baseline a duplicate scan is, correctly, not an anomaly: nothing is deviating from what the tile actually holds. The visual artefact is unchanged; only the detector's response is.)* **BLOCKING**
 
 ---
 
@@ -981,7 +1128,9 @@ magnitude below ENTITY_GHOST's, included so the smaller case isn't silently assu
    (round-3 fix, round-6 scope expansion): before the Point Cloud ADR is marked Accepted, prototype
    the full worst-case scene on actual min-spec hardware** — merged 1.5M-point BASE buffer, jitter +
    flicker shaders compiled and running over the whole buffer (the Q#6-(a) worst case), one active
-   occluder, the 0.5 s CPU sampling pass live, **and now also (round-6) both entity-layer worst
+   occluder, the CPU sampling sweep live **at the rebuilt Formula 2 (2026-08-01) — subsampled and
+   spread across frames, not the whole-tile pass the 2026-07-26 run measured at 31–37 ms; that run
+   does not carry over and the prototype must be re-run**, **and also (round-6) both entity-layer worst
    cases separately: a Type C ENTITY_GHOST full-buffer duplicate (the largest single addition) and
    a Type B ENTITY_SPIKE cluster at Formula 1b's defaults** — and confirm the AC-P01 numbers hold
    for both. If they don't, the density budget and/or the merge policy must change before

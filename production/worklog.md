@@ -6,6 +6,99 @@ any machine.
 
 ---
 
+## 2026-08-01 (Point Cloud Renderer, CD track 2) — **Formula 2 rebuilt once, from its data sources up.** 3 of 10 blockers closed; 7 untouched for track 3
+
+### What this session was
+The dedicated Formula 2 session the creative-director prescribed after round 7 — fresh context,
+nothing else in it. **Not a review.** Track 1 (run the prototypes) was done 2026-07-26; track 3
+(the consolidated mechanical pass for the remaining blockers) has NOT run.
+
+### The two decisions taken (both offered as options, both user-decided)
+1. **Baseline source: measured, not predicted.** `ρ_base = N_base / A_tile` — the tile's own sealed
+   BASE point count, read from the detection tile index at the moment Core Rule 7 seals points into
+   BASE. It is no longer `D × W_s`. This deviates from the CD's *literal* prescription (keep
+   `D × W_s`, add a binary owning-node completion gate) but not from its intent: the measured
+   baseline **subsumes** that gate — an unsealed tile has `N_base = 0` and is excluded — and also
+   fixes three things the literal model leaves open: the partially-sealed tile, the room-edge /
+   mixed-surface tile that legitimately holds fewer points than `D × W_s × A_tile`, and the
+   auto-scaled-`D` staleness item open since round 4.
+2. **Cost: subsample AND sweep, not subsample alone.** `ρ_obs = (N_res × k/n) / A_tile` from
+   `n = min(N_res, anomaly_tile_samples)` points taken on a **systematic stride** (never RNG — the
+   pass stays deterministic and unit-testable), default 128/tile; and the active set is swept at
+   `anomaly_tiles_per_frame` (default 16) tiles per frame rather than as one pass. Hard bound:
+   **≤ 2,048 points inspected in any single frame** at defaults (AC-D11). Subsample-only would have
+   left a ~3.5 ms lump justified by one unrepeated measurement on non-min-spec hardware; the sweep
+   costs one knob and one AC and answers the "no amortization Plan B" blocker outright.
+
+### What that closed
+**3 of 10 blockers:** #1 (`f_cov` has no data source), #3 (cost bound states no tuning assumption —
+the derived arithmetic is **deleted**, not corrected; the ADR owns it now), and the perf-prototype
+blocker (the 31–37 ms un-amortized pass). **Plus three long-open recommended items:** round-4's
+"ρ_base nominal-vs-runtime binding", round-4's joint `k_noise ≥ 1/√ρ_base` guard (re-homed onto the
+*sample size*, which is actually a knob — AC-D09), and "surface the frustum gate's attention-proxy
+role". `f_cov`, `ρ_base_eff` and `min_coverage_fraction` are **deleted, not replaced**: one derived
+constant `N_min = ceil(1/k_noise²)` (100 at defaults) now does the work of all three, and doubles as
+the runtime division-by-zero guard.
+
+### Two defects the rebuild itself found (neither was on anyone's list)
+1. **The activity gate said "intersects the camera frustum" — it must be "fully inside".** A tile
+   straddling the frustum edge has most of its points failing the frustum test for reasons unrelated
+   to any entity, so it read as a large false deficit on every pass, at every screen edge, in every
+   version since round 3. New AC-D12.
+2. **`k_noise`'s stated rationale was false under a measured baseline.** It modelled Poisson variance
+   between a tile's *expected* and *actual* count; measured, that variance is already inside `ρ_base`
+   and a normal tile now reads σ = 0 **exactly**. Restated as a sensitivity coefficient (the relative
+   deviation equal to 1σ). Every threshold, worked example, AC and downstream consumer is numerically
+   unchanged — only the justification moved. `√(A_ref/A_tile)` survives with its direction intact,
+   re-derived from sampling/quantization noise instead of Poisson counting.
+
+Incidental: the prototype's measured **87 ms tile-index build** vs AC-E04's same-frame BASE rebuild
+is dissolved by making the index explicitly **incremental and never same-frame-required** — a tile
+whose bin isn't built is simply not active. AC-E04's own text is untouched (track 3).
+
+### Files changed
+- `design/gdd/point-cloud-renderer.md` — Formula 2 replaced in full; Formula 1b's `ρ_base_local`
+  decoupled from F2's `ρ_base` (it is the *nominal* `D × W_s`, sizing geometry, not detecting it) +
+  example renumbered; Tuning Knobs (`min_coverage_fraction` deleted, `anomaly_tile_samples` 128 and
+  `anomaly_tiles_per_frame` 16 added, broken 1.77M/636k arithmetic stripped, `k_noise` relabelled,
+  interaction notes rewritten); AC-D02/D02b/D06 rewritten; **AC-D09–D12 added, count 33 → 37**;
+  AC-E05/E06 amended as fallout; Open Q#7 scope updated; header + Last Updated.
+- `design/gdd/reviews/point-cloud-renderer-review-log.md` — track-2 entry at top.
+
+### Caveats this session recorded against itself
+- **The perf blocker is closed by design, not by measurement.** The ~20× reduction is arithmetic off
+  the prototype's own per-point cost. **Open Q#7 must be re-run against the rebuilt formula** before
+  AC-P01's numbers are claimed; the 2026-07-26 run does not carry over.
+- **AC-E06's contract is reversed, not clarified.** It asserted a duplicate `scan:capture_frame`
+  fires a positive-σ event; under a measured baseline the duplicate points raise `N_base` in lockstep
+  when they seal, so σ ≈ 0 and **nothing fires**. Defensible (a duplicate scan is not a deviation from
+  what the tile actually holds) but it is a changed contract — round 8 should confirm, not assume.
+- **`k_noise`'s safe range now has a consequence the old model hid**: at the 0.05 floor `N_min` = 400
+  sealed points, which at low `base_density` excludes most of the map from detection. Range left at
+  0.05–0.30, coupling documented; a tuning pass should revisit it.
+- **The round-6 range narrowings (`A_tile` ≥ 0.5, `anomaly_sample_radius` ≤ 15) were left in place**
+  even though the arithmetic justifying them was deleted — under a per-frame bound they are no longer
+  load-bearing, but un-narrowing them is a tuning decision this session did not take.
+- **No new upstream contract.** The rebuild consumes only `scan:complete` sealing, which the renderer
+  already consumed. No new event, no payload change, no Scan Node / Orchestrator / systems-index
+  change. That was the failure mode of every prior Formula 2 patch — each added a term whose data
+  source did not exist.
+- **This session did not review its own output**, per the standing CD ruling.
+
+### NEXT
+1. **Track 3** — fresh session, consolidated mechanical pass for the 7 still-open blockers:
+   #2 (Formula 1b guard overshoot), #4 (`toneMapped=false` asymmetry), #5 (AC-P01 window (c) backwards
+   + unbarred), #6 (`ghost_decimation_stride` spawn-time-only), #7 (`flicker_rate` violates
+   accessibility A-V3), #8 (Level Design dependency undeclared), + the Formula 5
+   `output_fragment`→`opaque_fragment` addendum, + 6 recommended items.
+2. **Re-run Open Q#7** against the rebuilt Formula 2 (`prototypes/q7-perf/` needs updating to the
+   subsample+sweep model first).
+3. **Round 8** `/design-review`, fresh context, once tracks 2 and 3 are both in. CD exit criteria:
+   blockers (a) fewer than five, (b) none introduced by the fixing sessions' own edits, (c) **none
+   located in Formula 2** — (c) is exactly what this rebuild is being tested against.
+
+---
+
 ## 2026-07-26 (Point Cloud Renderer round 7) — MAJOR REVISION NEEDED; **5 of 8 blockers were introduced by round-6's own fixes**; NO fixes applied; pivoted to prototypes
 
 ### Verdict

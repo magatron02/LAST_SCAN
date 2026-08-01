@@ -2,9 +2,61 @@
 
 <!-- STATUS -->
 Epic: Point Cloud Renderer
-Feature: Design review + ADR-blocking prototypes
-Task: Run q7-perf and q1-occluder; then rebuild Formula 2
+Feature: Formula 2 rebuild (CD track 2)
+Task: DONE — next is track 3 (7 remaining blockers), fresh session
 <!-- /STATUS -->
+
+**Task:** Point Cloud Renderer (#1) — **CD track 2 COMPLETE (2026-08-01): Formula 2 rebuilt once,
+from its data sources up.** Not a review; a fixing session, unreviewed by design.
+
+**The rebuild in one line:** both densities now come from data the renderer already holds —
+`ρ_base = N_base / A_tile` (**measured** sealed-point count per tile, no longer `D × W_s`) and
+`ρ_obs = (N_res × k/n) / A_tile` (**subsampled**, 128 points/tile on a systematic stride), with the
+active set **swept at 16 tiles/frame** instead of one pass. `f_cov`, `ρ_base_eff` and
+`min_coverage_fraction` are deleted; one derived constant `N_min = ceil(1/k_noise²)` replaces all
+three plus the four-round-open joint noise guard, and doubles as the runtime div-zero guard.
+
+**User decisions (both offered as options):** (1) measured baseline over the CD's literal
+`D × W_s` + completion-gate model — it subsumes the gate and additionally fixes partially-sealed
+tiles, room-edge tiles, and auto-scaled-`D` staleness; (2) subsample **and** sweep, not subsample
+alone — the sweep is one knob + one AC and kills the "no amortization Plan B" blocker outright.
+
+**Closed: 3 of 10 blockers** (#1 `f_cov` data source, #3 cost-bound arithmetic — *deleted*, not
+corrected, the ADR owns it — and the perf-prototype blocker) **+ 3 long-open recommended items**.
+**Still open: 7**, untouched in the document, all for track 3.
+
+**Two defects the rebuild found itself:** the activity gate said "**intersects** the frustum" when it
+must say "**fully inside**" (edge-straddling tiles read as false deficits at every screen edge, since
+round 3 — new AC-D12); and `k_noise`'s Poisson rationale was false under a measured baseline
+(restated as a sensitivity coefficient — **every number unchanged**, only the justification moved).
+Incidental: the 87 ms tile-index build vs AC-E04 is dissolved by making the index explicitly
+incremental and never same-frame-required.
+
+**Files changed:** `design/gdd/point-cloud-renderer.md` (Formula 2 replaced in full; Formula 1b
+decoupled; Tuning Knobs; AC-D02/D02b/D06 rewritten; **AC-D09–D12 added, 33 → 37**; AC-E05/E06 as
+fallout; Open Q#7 scope; header) and `design/gdd/reviews/point-cloud-renderer-review-log.md`.
+
+**⚠ Read before trusting this work:**
+- The perf blocker is **closed by design, not by measurement** — Open Q#7 must be re-run against the
+  rebuilt formula (`prototypes/q7-perf/` needs updating to subsample+sweep first). The 2026-07-26 run
+  does not carry over.
+- **AC-E06's contract is reversed, not clarified** — a duplicate `scan:capture_frame` no longer fires
+  a positive-σ event (the baseline rises with the resident count). Confirm at round 8, don't assume.
+- `k_noise` at its 0.05 floor now needs 400 sealed points per tile to sample at all — at low
+  `base_density` that excludes most of the map. Range left as-is, coupling documented.
+- Round-6's `A_tile`/`anomaly_sample_radius` narrowings were **left in place** though the arithmetic
+  justifying them is deleted; un-narrowing is a tuning call not taken here.
+
+**NEXT:** (1) **track 3** in a fresh session — blockers #2, #4, #5, #6, #7, #8 + the Formula 5
+`output_fragment`→`opaque_fragment` addendum + 6 recommended; (2) re-run Open Q#7; (3) **round 8**
+`/design-review`, fresh context. CD exit criteria: <5 blockers, none self-inflicted by tracks 2–3,
+**none in Formula 2** — (c) is what this rebuild is being tested against. Then the other MVP GDDs
+(Entity System round 4, FPS Movement, Scan Mechanic, Win/Lose, UI/HUD) and
+`/gate-check pre-production`.
+
+---
+
+## Superseded — Point Cloud Renderer round 7 + prototypes (2026-07-26)
 
 **Task:** Point Cloud Renderer (#1) — **round-7 fresh-context re-review done (2026-07-26):
 MAJOR REVISION NEEDED. NO fixes applied — deliberate.** 5 specialists + creative-director.
