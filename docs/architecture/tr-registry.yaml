@@ -89,9 +89,9 @@ requirements:
   - id: TR-pc-009
     system: point-cloud
     gdd: design/gdd/point-cloud-renderer.md
-    requirement: "Emit renderer:anomaly_density {type, sigma} when point density in a tile crosses the sigma threshold"
+    requirement: "Emit renderer:anomaly_density {sigma} — magnitude only, no type field and no sign — when a detection tile's Formula 2 sigma crosses the threshold for anomaly_confirm_samples consecutive sweeps"
     created: 2026-07-02
-    revised: ""
+    revised: "2026-08-01"
     status: active
 
   # --- FPS Movement (design/gdd/fps-movement.md) ---

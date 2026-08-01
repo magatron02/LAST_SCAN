@@ -7,7 +7,7 @@ Proposed
 2026-07-02
 
 ## Last Verified
-2026-07-02
+2026-08-01 (decision (f) rewritten for the Formula 2 rebuild; rest of the ADR unreviewed since 2026-07-02)
 
 ## Decision Makers
 magatron02 (owner) + architecture-review follow-up
@@ -67,8 +67,16 @@ Materializing points live in a small transient `THREE.Points` (MATERIALIZING) wi
 ### (e) Per-frame jitter operates on a precomputed affected-index subset, not a full-cloud scan
 Each BASE/BASE_SEALED point keeps an immutable **rest position** (a parallel `Float32Array`). When `entity:proximity` enters a jitter tier, precompute **once** the index list of points within `entity_influence_radius` (via a coarse uniform spatial grid over the cloud, not a per-frame O(N) distance test). Each frame, write `rest + random(±J)` (Formula 3) into the live position attribute for only those indices and set `needsUpdate` on the affected range. On proximity dropping to FAR, restore rest positions once. This bounds per-frame cost to the affected subset — the detailed ms budget is ADR-0003's. (TR-pc-007)
 
-### (f) Anomaly density sampled on change events, throttled — not per frame
-Maintain a coarse tile grid (`A_tile` default 1.0 m²). Recompute observed density and Formula 2 σ per tile **on geometry-changing events** (BASE rebuild, scan seal, entity layer add/remove) and on a throttled interval, not every frame. Emit `renderer:anomaly_density {type, sigma}` per tile crossing the threshold; the renderer does not dedupe/rate-limit (UI/HUD's job, per GDD). (TR-pc-009)
+### (f) Anomaly density sampled by a bounded per-frame sweep over a subsampled tile index
+*(Rewritten 2026-08-01 — the prior text, "sampled on change events, throttled, not per frame", was invalidated by the Formula 2 rebuild. It also still carried a `{type}` field in the event payload, which the GDD's round-3 type-oracle fix removed; that was a live contradiction with Entity System's "no type taxonomy" invariant, independent of the rebuild.)*
+
+Maintain a **detection tile index**: one spatial bin per tile (`A_tile` default 1.0 m²) holding the indices of the `BASE`/`BASE_SEALED` and `ENTITY_SPIKE` points inside it, plus `N_base` (sealed BASE count) and `N_res` (resident count). Bins are written where points are written — on scan seal (d), on BASE rebuild (b), on ENTITY_SPIKE add/remove. **The index build is incremental and explicitly NOT same-frame-bound** (the Q#7 prototype measured a full build at 87 ms over 1,156 tiles / 5.8 MB, which would otherwise break renderer AC-E04's same-frame BASE rebuild); a tile whose bin is not yet built is simply not in the active set.
+
+Formula 2's `ρ_base` is read from the index (`N_base / A_tile`) — **measured, not derived from `D × W_s`**. `ρ_obs` is estimated from a subsample of `anomaly_tile_samples` (default 128) points per tile taken on a systematic stride — **never RNG**, so the pass is deterministic and unit-testable. The active set is swept at `anomaly_tiles_per_frame` (default 16) tiles **per frame**, completing once per `anomaly_sample_interval`; this replaces the throttled whole-set pass the Q#7 prototype measured at **31–37 ms**, ~2× the entire frame budget. Per-frame cost is bounded by `anomaly_tiles_per_frame × anomaly_tile_samples` (2,048 points) — see ADR-0003 (a) for the ms slice.
+
+Emit `renderer:anomaly_density {sigma}` per tile crossing the threshold — **magnitude only, no `type` field and no sign**; a signed or typed payload is a deterministic entity-type oracle. The renderer does not dedupe/rate-limit (UI/HUD's job, per GDD). (TR-pc-009)
+
+**This ADR owes the arithmetic the GDD deliberately no longer states:** the worst-case points-per-sweep at legal-extreme tuning, proven against the density budget and the min-spec baseline. Input: the Q#7 prototype's measured 418 active tiles / ~530k resident points at default tuning. **That run predates the rebuild and must be repeated against the subsample+sweep model before this ADR is Accepted.**
 
 ### Architecture Diagram
 ```

@@ -7,7 +7,7 @@ Proposed
 2026-07-02
 
 ## Last Verified
-2026-07-02
+2026-08-01 (anomaly sweep moved onto the per-frame budget; rest of the ADR unreviewed since 2026-07-02)
 
 ## Decision Makers
 magatron02 (owner) + architecture-review follow-up
@@ -57,6 +57,7 @@ Fixed ordering per rAF (from ADR-0001 d): **delivery pass → `renderer.render()
 | Bus delivery pass | snapshot + stable sort + dispatch | **≤ 0.3 ms** (typical n 2–20) | ADR-0001 |
 | Point-cloud jitter (when a proximity tier is active) | subset write + attribute upload flag | **≤ 2.0 ms** | ADR-0002 (e) |
 | Floor Plan per-tick | desync ring sample + escalation eval | **≤ 0.5 ms** | floor-plan Formula 1/2 |
+| Anomaly density sweep | `anomaly_tiles_per_frame × anomaly_tile_samples` visibility tests (2,048 points at defaults) | **≤ 0.5 ms** ⚠️ *unverified* | ADR-0002 (f), renderer Formula 2 |
 | Other discrete handling | scan state, event handlers | **≤ 0.5 ms** | — |
 | **CPU main-thread soft budget** | sum + GC/reserve headroom | **≤ 8.0 ms** | this ADR |
 | GPU draw + compositing | 1.5M-point render, ~1 draw call/layer | **remainder (~8.6 ms)** | AC-P01 is the ceiling test |
@@ -64,8 +65,16 @@ Fixed ordering per rAF (from ADR-0001 d): **delivery pass → `renderer.render()
 The **~8 ms CPU soft budget** deliberately leaves ~half the frame for GPU submit/draw and the browser compositor. The GPU point draw — not CPU — is what AC-P01 (≥55 FPS at ceiling) actually stresses; the CPU sub-budgets exist so a CPU regression can't be mistaken for a GPU limit.
 
 ### (b) What is explicitly *off* the per-frame budget
-- **Anomaly density sampling** (ADR-0002 f) — event-driven/throttled, never per-frame.
-- **BASE rebuild** (ADR-0002 b) — one-time on `floorplan:update`, a deliberate single-frame spike, not steady-state.
+- ~~**Anomaly density sampling** (ADR-0002 f) — event-driven/throttled, never per-frame.~~
+  **Reversed 2026-08-01 by the Formula 2 rebuild.** Anomaly sampling is now deliberately **on** the
+  per-frame path as a bounded sweep (see the slice in (a)), because the alternative — the throttled
+  whole-set pass this line described — was measured by the Q#7 prototype at **31–37 ms**, roughly 2×
+  the entire frame budget, as one un-amortized lump every 0.5 s. Moving it onto the per-frame path at
+  ~2,048 points/frame is what makes it affordable at all. **This is the one slice in the table with no
+  measurement behind it**: the ≤ 0.5 ms target is extrapolated from the prototype's own per-point cost
+  (~0.065 µs/point → ~0.13 ms at 2,048 points, with headroom for min-spec), not observed. Confirm it on
+  the Q#7 re-run before this ADR is Accepted.
+- **BASE rebuild** (ADR-0002 b) — one-time on `floorplan:update`, a deliberate single-frame spike, not steady-state. **Note:** the detection tile index does *not* rebuild with it — ADR-0002 (f) makes the index incremental precisely so the 87 ms measured build cannot land in that frame.
 - **Scan materialization** — active only during a scan (a few seconds), bounded to the small MATERIALIZING overlay.
 
 ### (c) Breach detection — dev-only, stripped in prod
@@ -80,6 +89,7 @@ rAF callback:
      ─ bus.deliverTick()      (≤0.3ms)   ── player:position, session:tick, queued events
      ─ point-cloud jitter     (≤2.0ms)   ── subset write when proximity active
      ─ floor-plan per-tick    (≤0.5ms)
+     ─ anomaly density sweep  (≤0.5ms)  ── 16 tiles × 128 samples = 2,048 pts
      ─ other discrete         (≤0.5ms)
   t1 ─ [CPU main-thread ≤ 8.0ms]  ← frame-time monitor warns if exceeded (dev)
      ─ renderer.render()      (GPU-bound, ~8.6ms headroom) ← AC-P01 ceiling test
@@ -138,7 +148,8 @@ No existing code — defines the budget the first implementations target.
 - [ ] Dev frame monitor warns (named slice) when CPU main-thread > 8.0 ms.
 - [ ] Queue tripwire fires per ADR-0001.
 - [ ] AC-P01 ≥55 FPS at 1.5M ceiling holds with all slices active.
-- [ ] Density sampling and BASE rebuild confirmed off the steady-state per-frame path.
+- [ ] BASE rebuild confirmed off the steady-state per-frame path; the detection tile index confirmed **not** rebuilding in the same frame as BASE.
+- [ ] Anomaly density sweep measured **on** the per-frame path and holding its ≤ 0.5 ms slice at defaults (2,048 points/frame) — the one extrapolated, unmeasured slice in (a).
 
 ## GDD Requirements Addressed
 | GDD Document | System | Requirement | How This ADR Satisfies It |
