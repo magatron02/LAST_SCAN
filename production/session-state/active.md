@@ -1,10 +1,56 @@
 # Active Session State
 
 <!-- STATUS -->
-Epic: Point Cloud Renderer
-Feature: Formula 2 rebuild (CD track 2)
-Task: DONE — next is track 3 (7 remaining blockers), fresh session
+Epic: Architecture
+Feature: UI/HUD ADR (ADR-0008)
+Task: HANDOFF — author it in a FRESH session (see block below)
 <!-- /STATUS -->
+
+## ▶ NEXT SESSION — `/architecture-decision ui-hud` (do NOT author it in a review session)
+
+`/architecture-review` ran 2026-08-01 **in the session that would otherwise have written this ADR**.
+The ADR skill's own rule forbids that pairing in either direction ("the reviewing agent must be
+independent of the authoring context"), so authoring was deliberately deferred. **Open a fresh
+session and run `/architecture-decision ui-hud`.** This block is the handoff so the cold session
+doesn't re-derive it — but treat every claim here as *input to verify*, not settled fact. In
+particular, the review's framing that this ADR is "mostly ratification" is an unchecked assessment
+made by the same context; test it rather than inherit it.
+
+**Why this ADR is first of the four missing ones:** two Proposed ADRs explicitly block on it by name.
+
+**The four inputs it needs:**
+
+1. **`design/gdd/ui-hud.md` Core Rule 2** (~line 92) — the substance. UI/HUD receives direct
+   references to Floor Plan, Scan Node, Scan Mechanic, Entity and Win/Lose at construction
+   (composition-root DI, the pattern ADR-0001 (a) already uses). Only **two** are polled per render
+   tick: `getDollhouseViewModel()` and `getNodeLedgerViewModel()`. The rest are event-driven. The GDD
+   states this is "recorded as this GDD's recommendation for its own future ADR to formalize."
+   It also mandates a **per-tick full-depth structural dirty check** (object key-set equality, array
+   length equality, SameValueZero scalars, no referential-stability assumption) with the DOM write
+   skipped when equal — AC-UH50. That is a hard perf contract, not an optimisation.
+
+2. **`docs/architecture/adr-0006-floor-plan.md` (g)** — defers dollhouse view-model transport to
+   "the UI/HUD ADR (future)" **and recommends the option the GDD rejected** (a latest-value
+   `floorplan:viewmodel` bus event). This ADR must resolve that and ADR-0006 (g) should then be
+   amended to point here.
+
+3. **`docs/architecture/adr-0007-scan-node.md` (h)** — same deferral for the node-ledger view model.
+
+4. **`docs/architecture/adr-0001-orchestrator-bus-wiring.md` (c)** — the open question the others
+   don't see. The ESLint `import/no-restricted-paths` zone rule forbids `src/systems/**` importing a
+   sibling, and ADR-0001 explicitly leaves the concrete globs until "the first system is scaffolded."
+   Whether UI/HUD's injected references are legal depends on where UI lives in the final `src/`
+   layout. **This ADR now has a consumer waiting on that decision — it should settle it.**
+
+**Also in scope, probably:** a per-frame budget slice for UI/HUD's polled getters + deep compare
+(conflict C3 — ADR-0003 names five per-frame consumers and UI/HUD is not one of them), and
+`TR-ui-009` (a DOM test harness is required to verify UI/HUD's 60 ACs but is absent from
+`technical-preferences.md`'s Allowed Libraries — jsdom / happy-dom / Testing Library all missing).
+
+**Requirements to cover:** `TR-ui-001` … `TR-ui-009` (`docs/architecture/tr-registry.yaml` v3).
+**Full context:** `docs/architecture/architecture-review-2026-08-01.md` (verdict FAIL, conflicts C3/C4).
+
+---
 
 **Task:** Point Cloud Renderer (#1) — **CD track 2 COMPLETE (2026-08-01): Formula 2 rebuilt once,
 from its data sources up.** Not a review; a fixing session, unreviewed by design.
