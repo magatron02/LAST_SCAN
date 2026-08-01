@@ -24,8 +24,8 @@
 #
 # STATUS VALUES: active | deprecated | superseded-by: TR-[system]-NNN
 
-version: 2
-last_updated: "2026-07-02"
+version: 3
+last_updated: "2026-08-01"  # /architecture-review — +30 TRs for the 4 MVP systems designed since v2 (Scan Mechanic, Entity, Win/Lose, UI/HUD). None has an owning ADR yet; see architecture-review-2026-08-01.md.
 
 requirements:
 
@@ -330,5 +330,230 @@ requirements:
     gdd: design/gdd/orchestrator.md
     requirement: "Static override set stored in src/core/event-overrides.js as a hand-authored literal, compiled once at construction; extended by editing the literal and rebuilding"
     created: 2026-07-02
+    revised: ""
+    status: active
+
+  # ============================================================================
+  # Added 2026-08-01 by /architecture-review.
+  # These four systems were undesigned at the v2 baseline (2026-07-02) and are
+  # now designed. NONE has an owning ADR — every entry below is a COVERAGE GAP.
+  # Extracted from each GDD's Core Rules + Interactions + Dependencies sections.
+  # ============================================================================
+
+  # --- Scan Mechanic (design/gdd/scan-mechanic.md) ---
+  - id: TR-sm-001
+    system: scan-mechanic
+    gdd: design/gdd/scan-mechanic.md
+    requirement: "Reads the ADR-0005 property file DIRECTLY at load (not via the bus) for each node's authoritativePosition — a third direct reader of that file, which ADR-0005 (a) does not acknowledge (it states two readers)"
+    created: 2026-08-01
+    revised: ""
+    status: active
+  - id: TR-sm-002
+    system: scan-mechanic
+    gdd: design/gdd/scan-mechanic.md
+    requirement: "Single top-level state machine IDLE -> INITIALIZING -> CAPTURING (4 beats: 0/90/180/270 deg) -> PROCESSING -> UPLOADING -> IDLE; only one scan in flight, concurrent trigger ignored"
+    created: 2026-08-01
+    revised: ""
+    status: active
+  - id: TR-sm-003
+    system: scan-mechanic
+    gdd: design/gdd/scan-mechanic.md
+    requirement: "Trigger availability when player:position is within capture_trigger_radius of authoritativePosition; suppressed for locally-tracked already-valid nodes and while any scan is in progress; requires a rebindable interact key distinct from Escape/WASD, never automatic"
+    created: 2026-08-01
+    revised: ""
+    status: active
+  - id: TR-sm-004
+    system: scan-mechanic
+    gdd: design/gdd/scan-mechanic.md
+    requirement: "Lock boundary: emits movement:scan_triggered at INITIALIZING and movement:scan_released the instant the 4th capture beat completes; PROCESSING and UPLOADING run UNLOCKED. ADR-0004 does not know movement:scan_released and still pins scan:complete/scan:abort as the only SCAN_LOCKED exits"
+    created: 2026-08-01
+    revised: ""
+    status: active
+  - id: TR-sm-005
+    system: scan-mechanic
+    gdd: design/gdd/scan-mechanic.md
+    requirement: "Drives camera rotation during CAPTURING: player's yaw at scan start becomes relative 0 deg (no snap); each beat splits scan_frame_duration T by hold fraction h — rotate during [0, h*T), hold during [h*T, T]. Reuses the registered T/h constants rather than new knobs"
+    created: 2026-08-01
+    revised: ""
+    status: active
+  - id: TR-sm-006
+    system: scan-mechanic
+    gdd: design/gdd/scan-mechanic.md
+    requirement: "entityInFrame determined by sampling the cached entity:proximity tier at the end of each capture beat (true if NEAR or ADJACENT at any beat) — distance-only MVP proxy, no facing/frustum check"
+    created: 2026-08-01
+    revised: ""
+    status: active
+  - id: TR-sm-007
+    system: scan-mechanic
+    gdd: design/gdd/scan-mechanic.md
+    requirement: "Emits scan:started {nodeId} on trigger and scan:captured {nodeId, valid, entityInFrame} on abort or successful upload; the local already-valid set is a UX aid only and never a competing authority to Scan Node's registry"
+    created: 2026-08-01
+    revised: ""
+    status: active
+  - id: TR-sm-008
+    system: scan-mechanic
+    gdd: design/gdd/scan-mechanic.md
+    requirement: "Emits scan:processing {progress} and scan:uploading {progress} as latest-value events for UI/HUD's diegetic phase readouts (registered provisional in entities.yaml; consumers list still says UI/HUD undesigned)"
+    created: 2026-08-01
+    revised: ""
+    status: active
+
+  # --- Entity System (design/gdd/entity-system.md) ---
+  - id: TR-ent-001
+    system: entity
+    gdd: design/gdd/entity-system.md
+    requirement: "Owns the canonical 4-tier proximity vocabulary (FAR/MEDIUM/NEAR/ADJACENT) and its computation from entity-to-player distance; emits entity:proximity {tier} — the tier set every other system's thresholds are written against"
+    created: 2026-08-01
+    revised: ""
+    status: active
+  - id: TR-ent-002
+    system: entity
+    gdd: design/gdd/entity-system.md
+    requirement: "Single entity, mutable manifestation: at most one entity active at a time, despawn-before-spawn; type A/B/C is a property of the active manifestation, never concurrent"
+    created: 2026-08-01
+    revised: ""
+    status: active
+  - id: TR-ent-003
+    system: entity
+    gdd: design/gdd/entity-system.md
+    requirement: "Spawn/retarget cadence and weighted room selection driven by session escalation e (Formula 4: inverse-distance weighting (d+eps)^-k with anomaly lerp) over the eligible room set from floorplan:update"
+    created: 2026-08-01
+    revised: ""
+    status: active
+  - id: TR-ent-004
+    system: entity
+    gdd: design/gdd/entity-system.md
+    requirement: "Per-type movement behaviour: Type A static void, Type B discrete pause-and-shift, Type C trailing pursuit with SPEED_BASE < MOVE_SPEED < SPEED_MAX bounded by the player's own move speed"
+    created: 2026-08-01
+    revised: ""
+    status: active
+  - id: TR-ent-005
+    system: entity
+    gdd: design/gdd/entity-system.md
+    requirement: "Emits entity:spawn {type, position}, entity:despawn, entity:transform {scale} (Type A silhouette growth), entity:position {position} (per-tick for Type B/C) — all via the bus, all consumed by Point Cloud Renderer"
+    created: 2026-08-01
+    revised: ""
+    status: active
+  - id: TR-ent-006
+    system: entity
+    gdd: design/gdd/entity-system.md
+    requirement: "Config invariants validated at load and rejected on violation (0 < I_min < I_max, SPEED_MAX > SPEED_BASE, SCALE_CAP, type_c_trail_delay) — they fail by silent inversion rather than NaN, so a load guard is the only detection"
+    created: 2026-08-01
+    revised: ""
+    status: active
+  - id: TR-ent-007
+    system: entity
+    gdd: design/gdd/entity-system.md
+    requirement: "Scanning aggression (Type C only): behaviour changes while the player is inside a locked scan window; the tell fires only at NEAR/ADJACENT — a documented, accepted type-C asymmetry"
+    created: 2026-08-01
+    revised: ""
+    status: active
+  - id: TR-ent-008
+    system: entity
+    gdd: design/gdd/entity-system.md
+    requirement: "Deterministic RNG ordering: session:end and a same-tick retarget resolve with session:end winning and zero RNG draws consumed; bounded re-roll fallback on room-selection failure"
+    created: 2026-08-01
+    revised: ""
+    status: active
+
+  # --- Win/Lose & Ending (design/gdd/win-lose-ending.md) ---
+  - id: TR-wl-001
+    system: win-lose
+    gdd: design/gdd/win-lose-ending.md
+    requirement: "Ending taxonomy with four triggers: Completion Trap, Escape, Movement Violation, Scan Corruption — each with its own detection condition read from Scan Node and Entity state"
+    created: 2026-08-01
+    revised: ""
+    status: active
+  - id: TR-wl-002
+    system: win-lose
+    gdd: design/gdd/win-lose-ending.md
+    requirement: "Deterministic precedence resolution when multiple ending conditions coincide in the same tick"
+    created: 2026-08-01
+    revised: ""
+    status: active
+  - id: TR-wl-003
+    system: win-lose
+    gdd: design/gdd/win-lose-ending.md
+    requirement: "Single-fire guarantee — exactly one ending is produced per session regardless of how many conditions become true"
+    created: 2026-08-01
+    revised: ""
+    status: active
+  - id: TR-wl-004
+    system: win-lose
+    gdd: design/gdd/win-lose-ending.md
+    requirement: "Ending record construction and one-shot delivery at session SEALED; UI/HUD renders the text-variation matrix from this record"
+    created: 2026-08-01
+    revised: ""
+    status: active
+  - id: TR-wl-005
+    system: win-lose
+    gdd: design/gdd/win-lose-ending.md
+    requirement: "Reads Scan Node's coverage and entityEverCaptured flag directly as ending inputs (the flag Scan Node records but deliberately does not surface in its view model)"
+    created: 2026-08-01
+    revised: ""
+    status: active
+
+  # --- UI / HUD (design/gdd/ui-hud.md) ---
+  - id: TR-ui-001
+    system: ui-hud
+    gdd: design/gdd/ui-hud.md
+    requirement: "View-model consumption is composition-root DI, not new bus events: UI/HUD receives direct references at construction; only Floor Plan getDollhouseViewModel() and Scan Node getNodeLedgerViewModel() are polled per render tick, everything else is event-driven. RESOLVES the transport seam ADR-0006 (g) and ADR-0007 (h) both deferred — but ADR-0006 (g) still recommends the rejected floorplan:viewmodel bus event"
+    created: 2026-08-01
+    revised: ""
+    status: active
+  - id: TR-ui-002
+    system: ui-hud
+    gdd: design/gdd/ui-hud.md
+    requirement: "Per-tick dirty check is a HARD requirement: compare each polled view model against the previous tick's cache to full structural depth (object key-set equality, array length equality, SameValueZero scalars) and skip the DOM write when equal; no referential-stability assumption. Runs every frame against the 16.6 ms budget but has NO slice in ADR-0003"
+    created: 2026-08-01
+    revised: ""
+    status: active
+  - id: TR-ui-003
+    system: ui-hud
+    gdd: design/gdd/ui-hud.md
+    requirement: "Panel structure: an always-on instrument view plus exactly one toggle-modal; all UI is diegetic DOM over the point-cloud canvas (no external HUD per technical-preferences)"
+    created: 2026-08-01
+    revised: ""
+    status: active
+  - id: TR-ui-004
+    system: ui-hud
+    gdd: design/gdd/ui-hud.md
+    requirement: "Never expose what a producing system forbids: no entity type or anomaly-event sign, no ANOMALY rooms, no true real-time scan state inside a desync window, no entityCaptured flag"
+    created: 2026-08-01
+    revised: ""
+    status: active
+  - id: TR-ui-005
+    system: ui-hud
+    gdd: design/gdd/ui-hud.md
+    requirement: "coverage is the visually dominant element wherever it co-locates with nodesCompleted — coverage_dominance_ratio (default 1.5x font size) plus DOM/reading-order precedence; the measurable proxy for Scan Node's deferred AC-SN31"
+    created: 2026-08-01
+    revised: ""
+    status: active
+  - id: TR-ui-006
+    system: ui-hud
+    gdd: design/gdd/ui-hud.md
+    requirement: "anomaliesLogged is a session-cumulative count of renderer:anomaly_density events; the renderer does not dedupe or rate-limit, so deduplication is UI/HUD's responsibility"
+    created: 2026-08-01
+    revised: ""
+    status: active
+  - id: TR-ui-007
+    system: ui-hud
+    gdd: design/gdd/ui-hud.md
+    requirement: "Session-state gating of panels, and terminal-screen rendering of Win/Lose's text-variation matrix exactly as that GDD specifies"
+    created: 2026-08-01
+    revised: ""
+    status: active
+  - id: TR-ui-008
+    system: ui-hud
+    gdd: design/gdd/ui-hud.md
+    requirement: "Diegetic error-message escalation keyed on renderer:anomaly_density magnitude, with a single audio alert tone per tick regardless of how many error-triggering events land in that tick"
+    created: 2026-08-01
+    revised: ""
+    status: active
+  - id: TR-ui-009
+    system: ui-hud
+    gdd: design/gdd/ui-hud.md
+    requirement: "A DOM test harness is required to verify this system's ACs but is NOT in technical-preferences' Allowed Libraries (jsdom/happy-dom/Testing Library all absent) — UI/HUD Open Question 5, a project-standards gap not a design gap"
+    created: 2026-08-01
     revised: ""
     status: active

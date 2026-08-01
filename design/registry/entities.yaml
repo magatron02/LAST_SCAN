@@ -309,10 +309,10 @@ events:
     source: design/gdd/point-cloud-renderer.md
     registered_by: design/gdd/orchestrator.md
     consumers: [design/gdd/ui-hud.md]  # error messages + anomaliesLogged tally
-    payload: "{sigma}"  # signed; type label removed 2026-07-15 (design-review — no consumer may learn entity type)
+    payload: "{sigma}"  # MAGNITUDE ONLY (sigma >= 0) — sign stripped before emission, type label removed 2026-07-15 (design-review — no consumer may learn entity type; a signed value is a type oracle: deficit=Type A, spike=Type B)
     kind: discrete
     added: 2026-07-01
-    revised: 2026-07-15
+    revised: 2026-08-01  # /architecture-review C5: this comment said "signed", contradicting the GDD's round-3 sign-stripping fix
   # -- scan mechanic post-capture flavor (UI/HUD undesigned) --
   - name: scan:processing
     status: provisional  # producer Scan Mechanic #8 in design (not yet reviewed); consumer UI/HUD #12 undesigned

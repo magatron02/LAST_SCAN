@@ -743,3 +743,18 @@ Renderer, FPS Movement, Scan Mechanic, Entity System, Win/Lose, UI/HUD), then a
 criterion the prior gate-check FAILed on.
 
 <!-- CONSISTENCY-CHECK: 2026-07-01 | GDDs checked: 5 | Conflicts found: 0 | Verdict: PASS -->
+
+---
+
+## Session Extract — /architecture-review 2026-08-01
+- Verdict: **FAIL**
+- Requirements: 72 total — 42 covered, 0 partial, **30 gaps**
+- New TR-IDs registered: **30** (TR-sm-001..008, TR-ent-001..008, TR-wl-001..005, TR-ui-001..009) — registry v2 → v3
+- GDD revision flags: None
+- Top ADR gaps: UI/HUD ADR (blocks ADR-0006(g) + ADR-0007(h)), Entity System ADR, Scan Mechanic ADR
+- Conflicts: C1 ADR-0004 vs FPS Movement/Scan Mechanic (`movement:scan_released` — behavioural);
+  C2 ADR-0005 "two readers" vs Scan Mechanic's third direct read; C3 ADR-0003 budget omits UI/HUD
+  + Entity per-frame work; C4 ADR-0006(g) recommends the transport UI/HUD rejected;
+  C5 `renderer:anomaly_density` payload drift — **RESOLVED** (all four copies now agree)
+- Fixed this session: C5 only (`entities.yaml` said "signed"). C1–C4 logged, documents unchanged.
+- Report: docs/architecture/architecture-review-2026-08-01.md
