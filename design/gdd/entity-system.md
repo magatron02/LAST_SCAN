@@ -261,7 +261,7 @@ already too late to matter, whether that's Type B or nothing at all.
     consumes `entity:proximity {tier:"ADJACENT"}` exactly this way. No new logic here.
 
 11. **Position broadcast (Type B and Type C only) — round-2 revision, closes a gap found in
-    fresh-context re-review.** `entity:spawn {position}` only carries the *starting* position —
+    fresh-context re-review.** `entity:spawn {type, position}` carries only the *starting* position —
     it never fires again for a manifestation that stays alive. That's sufficient for Type A
     (stationary, AC-ES13), but Type B relocates every `type_b_step_interval` (Rule 7) and Type C
     pursues continuously across the property (Rule 8); without a live position channel, Point

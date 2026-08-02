@@ -29,8 +29,8 @@
 #   All forbidden patterns: Grep pattern="^  - pattern:" (forbidden_patterns section)
 #   Superseded entries:     Grep pattern="status: superseded"
 
-version: 1
-last_updated: "2026-07-02"
+version: 2
+last_updated: "2026-08-01"  # ADR-0008 (UI/HUD): +2 interface contracts, +1 performance budget, +1 api decision
 
 # ─── STATE OWNERSHIP ─────────────────────────────────────────────────────────
 # Who is the authoritative owner of each piece of shared game state.
@@ -83,7 +83,44 @@ interfaces:
     signal_signature: "bus.publish(name, payload) / bus.subscribe(name, handler); bus injected via constructor or init(bus) from src/main.js"
     referenced_by:
       - docs/architecture/adr-0001-orchestrator-bus-wiring.md
+      - docs/architecture/adr-0008-ui-hud.md   # extends composition-root injection to sibling-system references, not just the bus
     added: 2026-07-02
+    revised: ""
+
+  - contract: presentation_layer_dependency_injection
+    status: active
+    pattern: direct_call        # constructor-injected instances; UiHud calls methods on live references, not a bus event
+    producer: src/main.js (composition root)
+    consumers:
+      - ui-hud (Floor Plan / Scan Node / Scan Mechanic / Entity System / Win/Lose references)
+    adr: docs/architecture/adr-0008-ui-hud.md
+    signal_signature: "new UiHud(bus, { floorPlan, scanNode, scanMechanic, entitySystem, winLose }, config); polled getters: floorPlan.getDollhouseViewModel(), scanNode.getNodeLedgerViewModel()"
+    reason: "Extends ADR-0001's manual-composition-root pattern from the bus alone to a second
+      category of injected dependency: sibling-system references. A presentation-layer system
+      reading view models every frame is polling, not discrete notification — routing it through
+      latest-value bus events (ADR-0006 (g)'s superseded recommendation) would duplicate the
+      consumer-side dirty-check at each producer. Core Rule 5 is preserved because the consumer
+      never STATICALLY IMPORTS a sibling; the reference arrives via the constructor.
+      Consumers MUST dirty-check each polled view model before writing the DOM — see
+      performance_budgets: ui-hud."
+    referenced_by:
+      - docs/architecture/adr-0008-ui-hud.md
+      - docs/architecture/adr-0006-floor-plan.md   # (g) — its deferred transport, resolved here
+      - docs/architecture/adr-0007-scan-node.md    # (h) — its deferred transport, resolved here
+    added: 2026-08-01
+    revised: ""
+
+  - contract: winlose_ending_record_transport
+    status: active
+    pattern: direct_call        # pull method, called once, not a bus event
+    producer: win-lose
+    consumers:
+      - ui-hud
+    adr: docs/architecture/adr-0008-ui-hud.md
+    signal_signature: "WinLose.getEndingRecord() -> { primaryOutcome, coverage, nodesCompleted, entityEverCaptured }; called exactly once by UiHud, on the tick it observes cached session state become SEALED"
+    referenced_by:
+      - docs/architecture/adr-0008-ui-hud.md
+    added: 2026-08-01
     revised: ""
 
 # Example:
@@ -131,6 +168,22 @@ performance_budgets:
     added: 2026-07-02
     revised: ""
 
+  - system: ui-hud
+    status: active
+    budget_ms: 0.1
+    adr: docs/architecture/adr-0008-ui-hud.md
+    notes: "Per-tick dirty-check: 2 polled view-model getters + structuralEqual() deep-compare over
+      small bounded objects (node ledger <=16 entries; dollhouse view model a fixed-shape summary).
+      DOM write occurs only on a changed tick. ⚠️ EXTRAPOLATED, NOT PROFILED — same unverified class
+      as ADR-0003's anomaly-sweep slice. A per-point or otherwise unbounded view model MUST NOT be
+      routed through this compare (ui-hud.md Core Rule 2 cost bound); if one is ever added, this
+      budget needs a keyed/versioned dirty-flag instead of a full structural walk."
+    referenced_by:
+      - docs/architecture/adr-0008-ui-hud.md
+      - docs/architecture/adr-0003-per-frame-budget.md   # slice added to its (a) table, closes review conflict C3
+    added: 2026-08-01
+    revised: ""
+
 # Example:
 #
 # performance_budgets:
@@ -169,6 +222,7 @@ api_decisions:
     reason: "src/main.js constructs the single Orchestrator and injects it via constructor (class modules) or init(bus) (flat modules). No DI library in the allowed list; satisfies coding-standards DI-over-singleton + per-test fresh instance."
     referenced_by:
       - docs/architecture/adr-0001-orchestrator-bus-wiring.md
+      - docs/architecture/adr-0008-ui-hud.md   # extends the same composition root to sibling-system references
     added: 2026-07-02
     revised: ""
 
@@ -191,7 +245,25 @@ api_decisions:
     reason: "Enforces Core Rule 5: src/systems/** may not import a sibling src/systems/**; only src/core/orchestrator.js is a permitted cross-system channel. Concrete zone globs fixed when first system is scaffolded."
     referenced_by:
       - docs/architecture/adr-0001-orchestrator-bus-wiring.md
+      - docs/architecture/adr-0008-ui-hud.md   # (a) settles this rule's scope for the presentation layer
     added: 2026-07-02
+    revised: ""
+
+  - purpose: presentation_layer_module_placement
+    status: active
+    api: src/ui/**   # e.g. src/ui/hud.js, src/ui/structural-equal.js, src/ui/message-pool.js
+    not: src/systems/ui-hud.js   # rejected — would need an explicit carve-out in the zone rule's globs
+    adr: docs/architecture/adr-0008-ui-hud.md
+    reason: "Presentation-layer systems live OUTSIDE src/systems/** entirely, so the
+      cross_system_import_enforcement zone rule (src/systems/** -> src/systems/**) never reaches
+      them by construction rather than by documented exception. UI/HUD makes zero static imports of
+      any sibling regardless — every reference arrives via constructor injection from src/main.js.
+      Precedent for future presentation-layer systems (Found-Footage Layer #13). NOTE for whoever
+      fixes the concrete zone globs (ADR-0001 (c), still open): also ban src/ui/** -> src/systems/**,
+      not just the reverse — the DI pattern never needs a static import in either direction."
+    referenced_by:
+      - docs/architecture/adr-0008-ui-hud.md
+    added: 2026-08-01
     revised: ""
 
 # Example:

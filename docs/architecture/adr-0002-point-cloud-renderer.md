@@ -96,8 +96,12 @@ Emit `renderer:anomaly_density {sigma}` per tile crossing the threshold — **ma
 
 ### Key Interfaces
 - `new PointCloudRenderer(bus, scene, { baseDensity, densityBudgetCeiling, surfaceTypeWeights, pointSize, aTile, anomalySigmaThreshold, entityInfluenceRadius, ... })` — constructor-injected bus + tuning config (no hardcoded gameplay values).
-- Subscribes: `floorplan:update`, `entity:spawn`/`entity:despawn`, `entity:proximity`, `scan:capture_frame`, `scan:complete`, `scan:abort`.
-- Publishes: `renderer:anomaly_density {type, sigma}`.
+- Subscribes: `floorplan:update`, `entity:spawn`/`entity:despawn`, `entity:transform`, `entity:position`, `entity:proximity`, `scan:capture_frame`, `scan:complete`, `scan:abort`.
+  - `entity:transform {scale}` — re-scales the Type A VOID_MASK occluder in place (the growing-void tell). Held as last-applied while Type A is active; **resets to 1.0 on `entity:despawn`** so a stale scale never replays onto the next Type A (`entities.yaml`, `kind: discrete` — deliberately not latest-value).
+  - `entity:position {position}` — positions ENTITY_SPIKE (Type B) / ENTITY_GHOST (Type C) after the spawn frame; `entity:spawn` carries only the initial position. Drives the renderer's Formula 3/5 CPU-side distance math (GDD AC-C09, BLOCKING).
+
+  *Added 2026-08-01: both events were absent from this ADR entirely (zero mentions), though `point-cloud-renderer.md` records both inbound (round-6) and TR-ent-005 names this system as their consumer. Same defect class as ADR-0004 vs `movement:scan_released`.*
+- Publishes: `renderer:anomaly_density {sigma}` — **magnitude only, `sigma >= 0`; no `type` field, no sign** (see (f); a signed or typed payload is a deterministic entity-type oracle). *Corrected 2026-08-01: this line still carried `{type, sigma}` after the 2026-08-01 C5 fix amended only (f)'s prose — the review marked C5 resolved while the Key Interfaces contract an implementer copies was still wrong.*
 
 ### Implementation Guidelines
 - Layers are added to the scene, never swapped — BASE is never hidden (AC-C02).

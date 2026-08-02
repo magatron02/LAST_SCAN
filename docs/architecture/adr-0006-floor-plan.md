@@ -69,8 +69,16 @@ Each `loopable` door holds `DORMANT/ARMED/TRIGGERED/COOLDOWN` (GDD state table).
 ### (f) Reveal & mutation emit exactly one full-set `floorplan:update`; loops never do
 Any geometry mutation (anomaly reveal) emits exactly **one** `floorplan:update` carrying the full current room set (renderer rebuilds BASE once, AC-E04/C06). The dollhouse is **not** updated on reveal (anomaly stays off the map). Reveal + loop in the same tick → reveal's `floorplan:update` before `floorplan:loop` (registered override, Orchestrator AC-OR10). (part of TR-fp-002/005)
 
-### (g) View model transport to UI — method now, bus event deferred to UI/HUD ADR
-FloorPlan exposes `getDollhouseViewModel()` (pure, (b)). The **transport** to UI/HUD (a latest-value `floorplan:viewmodel` bus event vs. the composition root wiring the read) is **deferred to the UI/HUD ADR** to preserve Core Rule 5 (no direct import). Recommended path: a latest-value `floorplan:viewmodel` event re-emitted on change (incl. per-tick marker movement) — flagged provisional, to be registered when UI/HUD is designed. This ADR does not finalise it. (TR-fp-009)
+### (g) View model transport to UI — RESOLVED by ADR-0008: composition-root DI, not a bus event
+FloorPlan exposes `getDollhouseViewModel()` (pure, (b)). **Resolved 2026-08-01 by ADR-0008 (b)/(e)**:
+the transport is composition-root DI — `src/main.js` injects the `FloorPlan` reference into
+`UiHud`'s constructor, which polls `getDollhouseViewModel()` every render tick while
+`DOLLHOUSE_OPEN`. **This supersedes the recommendation below**, which this ADR's own text had
+flagged as provisional. ~~Recommended path: a latest-value `floorplan:viewmodel` event re-emitted
+on change (incl. per-tick marker movement) — flagged provisional, to be registered when UI/HUD
+is designed.~~ No `floorplan:viewmodel` event is registered — see ADR-0008 Alternative 1 for why
+it was rejected (it would duplicate the per-tick dirty-check ADR-0008 (c) already requires at the
+consumption side). (TR-fp-009)
 
 ### Architecture Diagram
 ```
@@ -159,4 +167,4 @@ No existing Floor Plan module. Defines the first implementation.
 
 ## Related
 - ADR-0001 (bus), ADR-0005 (data schema), ADR-0007 (Scan Node — reciprocal `scan:*`/`floorplan:*` seam).
-- UI/HUD ADR (future) — finalises the dollhouse view-model transport (g).
+- ADR-0008 (UI/HUD) — finalises the dollhouse view-model transport (g), resolved 2026-08-01.

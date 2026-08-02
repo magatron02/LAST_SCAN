@@ -73,8 +73,8 @@ On `scan:captured {valid:true, entityInFrame:true}` the node still becomes VALID
 ### (g) Two distinct derived metrics — never reconciled
 `coverage()` uses the `N+1` denominator (b). `nodesCompleted()` returns `{X: countValidStandard(), Y: countStandard()}` — a **standard-only** denominator, `ANOMALY_FINAL` absent until revealed. The two intentionally diverge (escape player sees `12/12` + `92.3%`); implementers must not "fix" the mismatch. Both are pure derivations. (TR-sn-007)
 
-### (h) Node-ledger view model — method now, transport deferred
-`getNodeLedgerViewModel()` returns `{ nodes:[{nodeId, roomId, status, displayPosition}], coverage, nodesCompleted:{X,Y}, integrityCount }` (excludes `entityCaptured` per (f)). Same transport deferral as Floor Plan (ADR-0006 (g)): the UI/HUD ADR finalises whether this rides a latest-value bus event or composition-root wiring — Core Rule 5 forbids UI importing ScanNode. The GDD's "coverage dominant + non-colour channel" is a UI-render constraint carried into the UI/HUD GDD/ADR, not implemented here. (TR-sn-008)
+### (h) Node-ledger view model — RESOLVED by ADR-0008: composition-root DI, not a bus event
+`getNodeLedgerViewModel()` returns `{ nodes:[{nodeId, roomId, status, displayPosition}], coverage, nodesCompleted:{X,Y}, integrityCount }` (excludes `entityCaptured` per (f)). **Resolved 2026-08-01 by ADR-0008 (b)/(e)**, same resolution as Floor Plan (ADR-0006 (g)): the transport is composition-root DI — `src/main.js` injects the `ScanNode` reference into `UiHud`'s constructor, which polls `getNodeLedgerViewModel()` every render tick while `HUD_ACTIVE`. No new bus event is registered; Core Rule 5 (no UI import of ScanNode) is preserved because `UiHud` never statically imports this module — the reference arrives via the constructor. The GDD's "coverage dominant + non-colour channel" is a UI-render constraint implemented in the UI/HUD GDD/ADR-0008, not here. (TR-sn-008)
 
 ### Architecture Diagram
 ```
@@ -165,4 +165,4 @@ No existing Scan Node module. Defines the first implementation.
 ## Related
 - ADR-0001 (bus + atomic override), ADR-0005 (authoritative positions), ADR-0006 (Floor Plan seam).
 - `design/gdd/scan-node-system.md` AC-SN22/SN30 (deferred contract/composition tests).
-- UI/HUD ADR (future) — node-ledger transport + coverage-dominant render.
+- ADR-0008 (UI/HUD) — node-ledger transport + coverage-dominant render, resolved 2026-08-01.

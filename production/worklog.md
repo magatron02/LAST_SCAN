@@ -6,6 +6,112 @@ any machine.
 
 ---
 
+## 2026-08-02 (Architecture) — **ADR-0008 (UI/HUD) written**; 2 deferred seams closed, conflicts C3+C4 resolved; then a drift hunt found the C5 fix was incomplete and CI was red
+
+### What this session was
+`/architecture-decision ui-hud` in a fresh session, exactly as the 2026-08-01 handoff prescribed.
+Then a research pass for the *next* ADR (Entity System) that turned into an unplanned contract-drift
+fix. **No ADR-0009 was written** — it is the next task.
+
+### Part 1 — ADR-0008 written (the planned work)
+`docs/architecture/adr-0008-ui-hud.md`, **Proposed**. Eight decisions (a)–(h). Covers
+**TR-ui-001..008**. It ratifies what `ui-hud.md` Core Rule 2 had already decided but left as "a
+recommendation for its own future ADR", and pins the four seams the GDD left genuinely open:
+
+- **(a) `src/ui/hud.js`** — a new top-level zone **outside `src/systems/**` entirely**, so ADR-0001(c)'s
+  ESLint `import/no-restricted-paths` ban never needs a carve-out for UI. This settles the "concrete
+  globs when the first system is scaffolded" question *for UI/HUD* and sets the precedent for
+  Found-Footage Layer (#13). **User decision** (offered vs. `src/systems/ui-hud.js`).
+- **(b) Composition-root DI extended to sibling references**, not just the bus:
+  `new UiHud(bus, { floorPlan, scanNode, scanMechanic, entitySystem, winLose }, config)` — named
+  object, not 5 positional args. Closes GDD Open Q#8 (Orchestrator OQ9(a) was already answered by
+  ADR-0001(a); this is its direct extension, not a new pattern).
+- **(c) `structuralEqual(a, b)`** as a standalone pure module for Rule 2's mandatory per-tick
+  dirty-check. **Generalised beyond the GDD:** the GDD forces a write only for the node-ledger cache
+  on HUD re-attach; the dollhouse cache is stale by identical reasoning after being unpolled through
+  a `HUD_ACTIVE` interval (Floor Plan desync keeps advancing), so **both** caches reset on their
+  panel-activation edge. Flagged for the GDD owner — wants a symmetric AC alongside AC-UH55.
+- **(e) `WinLose.getEndingRecord()`** — pull method called once at the SEALED edge, matching the GDD's
+  own "data consumer" (not "event consumer") wording. **User decision** (offered vs. a `winlose:ended` event).
+- **(f)** end-of-tick audio via `queueMicrotask` from the `session:tick` handler — the microtask
+  necessarily fires after the whole rAF callback (ADR-0001(d) delivery + render) completes.
+- **(g) `ShuffledMessagePool`** — shuffle-bag with a cycle-boundary repeat fix.
+
+**Two corrections came from the `ui-programmer` validation, both folded in before writing:**
+`Object.is` is **not** SameValueZero (it splits `+0`/`-0`, which the GDD names explicitly) → a real
+`sameValueZero` helper; and the shuffle needs an **injected RNG**, since `coding-standards.md` bans
+non-deterministic tests and AC-UH19b would otherwise be unrepeatable. It also warned that Vitest fake
+timers don't auto-flush `queueMicrotask` — recorded as an Implementation Guideline.
+
+**Amended in the same changeset:** ADR-0006(g) and ADR-0007(h) now point at ADR-0008 instead of "the
+UI/HUD ADR (future)" (ADR-0006(g)'s `floorplan:viewmodel` recommendation struck through, not deleted,
+so the reversal stays auditable) — **closes C4**. ADR-0003 gained a **≤0.1 ms UI/HUD slice** —
+**closes C3**; slices now total 4.1 ms against the 8.0 ms CPU soft budget. `docs/registry/architecture.yaml`
+→ **v2**: 2 interface contracts, 1 perf budget, 1 api_decision, 3 `referenced_by` updates.
+
+**Explicitly NOT claimed:** TR-ui-009 (DOM harness). It's an Allowed-Libraries change in
+`technical-preferences.md`, not an architecture decision. 16 UI/HUD ACs stay unwritable until it lands.
+
+### Part 2 — the drift hunt (unplanned, and the more important half)
+A 5-agent research workflow for ADR-0009 mapped the Entity System GDD and ran a dedicated
+**event-contract drift hunter**. The mappers succeeded; **all 10 adversarial verify agents died on
+the session rate limit**, so the 10 candidates came back unverified. Rather than trust them,
+**4 were verified by hand against source and fixed; 1 was downgraded as overstated; 6 remain unverified.**
+
+**The headline: the 2026-08-01 review's "C5 RESOLVED" was an overclaim, in two independent ways.**
+
+1. **ADR-0002 contradicted itself.** Line 77 (decision (f)) said `{sigma}` magnitude-only; **line 100
+   (Key Interfaces) still said `{type, sigma}`** — the machine-readable line an implementer actually
+   copies. The C5 fix amended only the prose. **Fixed.**
+2. **`ui-hud.md` was a fifth artefact the C5 audit never enumerated** (its table listed exactly four).
+   It described `sigma` as **signed in three places**, one of them **BLOCKING AC-UH13**, which staged
+   `{sigma: -4.0}` — **a payload the producer cannot emit**, since the sign is stripped before
+   emission. A developer would have written a blocking test against an unreachable fixture. **All
+   three fixed;** AC-UH13's intent (tally is magnitude-blind) preserved, impossible fixture replaced
+   with `{sigma: 2.6}` (just over the 2.5 threshold).
+
+Why it matters beyond bookkeeping: a signed or typed `sigma` is a **deterministic entity-type oracle**
+(negative ⇒ Type A, positive ⇒ Type B), which breaks the ratified "the player never learns which
+type" invariant at the event-contract level. A repo-wide sweep now confirms **all six live copies agree**.
+
+3. **ADR-0002 had zero mentions of `entity:transform` / `entity:position`** — 2 of the 4 events Entity
+   System produces, both recorded inbound in the renderer's own GDD (round-6) with BLOCKING AC-C09,
+   and named in TR-ent-005. Same defect class as ADR-0004 vs `movement:scan_released`. **Fixed**, with
+   the `kind: discrete` + reset-to-1.0-on-despawn semantics recorded.
+4. **`entity:position`'s registry note was stale** ("Point Cloud Renderer's GDD needs a pass" — it got
+   that pass on 2026-07-25). **Fixed.**
+5. **EC-04 downgraded, not fixed** — the agent claimed `registered_by: orchestrator.md` cites a source
+   that doesn't contain the fact. True of the field, but the adjacent `status:` comment *already*
+   discloses the pending Orchestrator registration. That's disclosure, not false citation.
+
+### Part 3 — `verify:registry` was RED, and had been for weeks
+Running it caught a defect **no agent found and four Entity System review rounds missed**:
+`FAIL entity:spawn — producing GDD contradicts itself: {position, type} vs {position}`.
+`entity-system.md:264` wrote `entity:spawn {position}` in a sentence about *position* (author dropped
+`type` because that wasn't the subject); 5 other sites in the same GDD and the registry all say
+`{type, position}`. **Fixed** → **16 pass / 0 fail / 10 skip, CI green.** The hook's last recorded
+figure was 14/0/5 on 2026-07-02, so this had been red since Entity System was designed.
+Reinforces the standing ruling that manual review cannot close this defect class.
+
+### State / next
+- **ADR-0008 Proposed.** Coverage 42 → 50 of 72 TRs. Remaining ADR gaps: Entity System, Scan
+  Mechanic, Win/Lose (22 TRs, of which TR-ui-009 is a standards gap, not an ADR gap).
+- **ADR-0009 (Entity System) is the next task.** Its research is already done and recoverable —
+  4 mapper slices, ~20 candidate architectural decisions. Top ones: type-behaviour dispatch
+  (mutable `currentType` field vs. swapped strategy object — the GDD's Rule 3, its state table, and
+  AC-ES34 each imply a different one); lifetime of per-manifestation state (Type A `dwell`, Type B
+  anchor, Type C ring buffer — persistent vs per-manifestation both pass every existing AC while
+  behaving visibly differently); per-tick pipeline stage order; injected seeded RNG.
+- **⚠ 6 unverified drift candidates outstanding** (EC-05…EC-10): `floorplan:update` consumer lists
+  naming Entity nowhere, `entity:proximity` fanout undercounted by 2, Entity absent from
+  `movement:scan_triggered`/`_released` consumers, Entity's own Orchestrator row omitting 2 of 4
+  outbound events, stale `provisional` flags, and Floor Plan promising Entity a "door graph" no
+  payload carries. **Verify before trusting — the refute pass never ran.**
+- **⚠ Do NOT run `/architecture-review` in the same session as `/architecture-decision`.** Run it
+  fresh to confirm C3/C4 are closed and coverage moved.
+
+---
+
 ## 2026-08-01 (Point Cloud Renderer, CD track 2) — **Formula 2 rebuilt once, from its data sources up.** 3 of 10 blockers closed; 7 untouched for track 3
 
 ### What this session was

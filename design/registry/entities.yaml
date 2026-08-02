@@ -296,7 +296,7 @@ events:
     kind: discrete  # stream; renderer holds last-applied while Type A active, resets to 1.0 on entity:despawn — NOT latest-value (avoids a stale scale replaying onto the next Type A)
     added: 2026-07-18  # closes point-cloud-renderer Open Cross-System Item (entity:transform {scale} contract)
   - name: entity:position
-    status: provisional  # Entity #9 ratifies emission (Core Rule 11 / AC-ES47, round-2 design-review 2026-07-25); Point Cloud Renderer's own GDD needs a pass to formally record the inbound contract
+    status: provisional  # Entity #9 ratifies emission (Core Rule 11 / AC-ES47, round-2 design-review 2026-07-25); Point Cloud Renderer's GDD DID record the inbound contract (round-6, 2026-07-25 — stale "needs a pass" note corrected 2026-08-01) and ADR-0002 records it since 2026-08-01; Orchestrator formal relay registration still pending its own /design-system pass, as with entity:transform
     source: design/gdd/entity-system.md
     registered_by: design/gdd/orchestrator.md
     consumers: [design/gdd/point-cloud-renderer.md]  # positions ENTITY_SPIKE (Type B) / ENTITY_GHOST (Type C) after the initial spawn frame

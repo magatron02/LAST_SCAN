@@ -2,11 +2,62 @@
 
 <!-- STATUS -->
 Epic: Architecture
-Feature: UI/HUD ADR (ADR-0008)
-Task: HANDOFF — author it in a FRESH session (see block below)
+Feature: Entity System ADR (ADR-0009)
+Task: NEXT — research already done, see handoff below
 <!-- /STATUS -->
 
-## ▶ NEXT SESSION — `/architecture-decision ui-hud` (do NOT author it in a review session)
+## ▶ NEXT SESSION — `/architecture-decision entity-system` (ADR-0009)
+
+**ADR-0008 (UI/HUD) is DONE** (2026-08-02, Proposed). See `production/worklog.md` top entry for the
+full account. This block is the handoff for the next one. **Treat every claim here as input to
+verify, not settled fact.**
+
+### The research is already done — don't redo it
+A 5-agent workflow mapped `design/gdd/entity-system.md` (1,644 ln) across 4 slices. Raw results:
+`C:\Users\Lenovo\.claude\projects\C--Users-Lenovo-Desktop-AI-Last-Scan\37b17114-eebc-4f7f-a48a-ebedcc1bcc28\subagents\workflows\wf_3e7ab11b-f69\journal.jsonl`
+(one `{"type":"result"}` line per agent). If that temp dir is gone, the headline findings are below.
+
+**The GDD is well-pinned on *behaviour* and almost silent on *structure*.** The real ADR mandate:
+
+1. **Type-behaviour dispatch.** Three passages imply three different designs: Rule 3 pins a flat
+   record `{currentType, currentPosition, currentRoomId}` (mutable-field); the state table pins
+   `MANIFESTING_A/B/C` as distinct states (strategy object); AC-ES34 forbids a direct A→B edge
+   (construct/destroy per manifestation). Pick one and say why.
+2. **Lifetime of per-manifestation state** — Type A `dwell`, Type B spawn anchor + step timer,
+   Type C ring buffer. **None has a slot in the only state shape the GDD pins.** Type A dwell is the
+   sharp case: the variable table forbids reset *on tier exit* but nothing says a *new* Type A starts
+   at 0 — persistent and per-manifestation both pass every existing AC while producing visibly
+   different silhouettes (a session's 2nd Type A could spawn already at 1.5×).
+3. **Per-tick pipeline stage order.** The GDD pins only 2 same-tick collisions (`session:end` beats
+   retarget; retarget beats a Type B step) and "compute `e` once" (AC-ES37). The order of the other
+   5 stages is observable — it changes whether Rule 9's aggression gate sees the pre- or post-movement
+   tier, and whether `entity:position` reports pre- or post-step.
+4. **Injected seeded RNG** with a fixed draw order (AC-ES58: `session:end` + same-tick retarget →
+   `session:end` wins, **zero draws consumed**). Also: Formula 4's `k`/`ε` are missing from the GDD's
+   own injectable-knob list.
+5. **Reported but UNVERIFIED:** the state table may have no terminal state after `session:end` — a
+   table-faithful implementation would re-arm the retarget timer and violate AC-ES35. **Check this.**
+
+### ⚠ 6 UNVERIFIED drift candidates — the refute pass died on the rate limit
+EC-05 `floorplan:update` has 3 inconsistent consumer statements, none naming Entity (which calls it a
+hard dependency + Formula 4's sole eligible-room source); EC-06 registry lists 4 consumers for
+`entity:proximity`, Entity's own table lists 6; EC-07 Entity's scanning-aggression gates on
+`movement:scan_triggered`/`_released` but neither the registry nor Scan Mechanic lists Entity as a
+consumer; EC-08 Entity's own Orchestrator row omits 2 of 4 outbound + 1 of 6 inbound events;
+EC-09 registry still marks `entity:proximity` provisional "tier vocab undecided" though systems-index
+records it RESOLVED 2026-07-02; EC-10 Floor Plan promises Entity a "door graph" no payload carries.
+**Verify each against source before acting. A false finding is worse than none.**
+
+### Also open
+- `docs/CLAUDE.md` still points at `engine-reference/godot/VERSION.md` — one line, actively misleading.
+- ADR-0002 (c) still omits `side: DoubleSide` and still reads as if its OQ1 prototype gate is unmet
+  (it passed 2026-07-26).
+- `tests/integration/` empty; renderer AC-C08 is BLOCKING against it.
+- TR-ui-009: DOM harness (jsdom/Testing Library) absent from Allowed Libraries — 16 UI/HUD ACs blocked.
+
+---
+
+## ✅ SUPERSEDED 2026-08-02 — the UI/HUD handoff below was executed; kept for history
 
 `/architecture-review` ran 2026-08-01 **in the session that would otherwise have written this ADR**.
 The ADR skill's own rule forbids that pairing in either direction ("the reviewing agent must be

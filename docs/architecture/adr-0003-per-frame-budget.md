@@ -7,7 +7,7 @@ Proposed
 2026-07-02
 
 ## Last Verified
-2026-08-01 (anomaly sweep moved onto the per-frame budget; rest of the ADR unreviewed since 2026-07-02)
+2026-08-01 (anomaly sweep moved onto the per-frame budget; UI/HUD slice added by ADR-0008 same day; rest of the ADR unreviewed since 2026-07-02)
 
 ## Decision Makers
 magatron02 (owner) + architecture-review follow-up
@@ -59,6 +59,7 @@ Fixed ordering per rAF (from ADR-0001 d): **delivery pass → `renderer.render()
 | Floor Plan per-tick | desync ring sample + escalation eval | **≤ 0.5 ms** | floor-plan Formula 1/2 |
 | Anomaly density sweep | `anomaly_tiles_per_frame × anomaly_tile_samples` visibility tests (2,048 points at defaults) | **≤ 0.5 ms** ⚠️ *unverified* | ADR-0002 (f), renderer Formula 2 |
 | Other discrete handling | scan state, event handlers | **≤ 0.5 ms** | — |
+| UI/HUD per-tick dirty-check | 2 polled getters (`getDollhouseViewModel()`/`getNodeLedgerViewModel()`) + `structuralEqual` deep-compare over small, bounded view models (≤16 nodes) — DOM write only on change | **≤ 0.1 ms** ⚠️ *unverified — added by ADR-0008, 2026-08-01, closes conflict C3* | ADR-0008 (c) |
 | **CPU main-thread soft budget** | sum + GC/reserve headroom | **≤ 8.0 ms** | this ADR |
 | GPU draw + compositing | 1.5M-point render, ~1 draw call/layer | **remainder (~8.6 ms)** | AC-P01 is the ceiling test |
 
@@ -91,6 +92,7 @@ rAF callback:
      ─ floor-plan per-tick    (≤0.5ms)
      ─ anomaly density sweep  (≤0.5ms)  ── 16 tiles × 128 samples = 2,048 pts
      ─ other discrete         (≤0.5ms)
+     ─ UI/HUD dirty-check     (≤0.1ms)  ── 2 polled getters + structuralEqual (ADR-0008)
   t1 ─ [CPU main-thread ≤ 8.0ms]  ← frame-time monitor warns if exceeded (dev)
      ─ renderer.render()      (GPU-bound, ~8.6ms headroom) ← AC-P01 ceiling test
   t2 ─ frame end (target ≤16.6ms)
@@ -150,6 +152,7 @@ No existing code — defines the budget the first implementations target.
 - [ ] AC-P01 ≥55 FPS at 1.5M ceiling holds with all slices active.
 - [ ] BASE rebuild confirmed off the steady-state per-frame path; the detection tile index confirmed **not** rebuilding in the same frame as BASE.
 - [ ] Anomaly density sweep measured **on** the per-frame path and holding its ≤ 0.5 ms slice at defaults (2,048 points/frame) — the one extrapolated, unmeasured slice in (a).
+- [ ] UI/HUD's per-tick dirty-check measured against its ≤ 0.1 ms slice (added by ADR-0008) — also extrapolated, not yet profiled.
 
 ## GDD Requirements Addressed
 | GDD Document | System | Requirement | How This ADR Satisfies It |
@@ -157,6 +160,7 @@ No existing code — defines the budget the first implementations target.
 | `design/gdd/point-cloud-renderer.md` | Point Cloud Renderer | TR-pc-005 — 60 FPS at ceiling; TR-pc-007 — per-frame jitter cost | (a) jitter sub-budget + GPU ceiling framing; (c) monitor |
 | `design/gdd/orchestrator.md` | Orchestrator | TR-or-008 — bounded, observable per-tick delivery cost | (a) 0.3 ms slice; (c) queue tripwire (ADR-0001) |
 | `design/gdd/fps-movement.md` | FPS Movement | AC-PERF01 — movement update ≤0.2 ms | (a) input slice |
+| `design/gdd/ui-hud.md` | UI/HUD | TR-ui-002 — per-tick dirty check runs every frame with no named budget (conflict C3) | (a) new ≤0.1 ms slice, added by ADR-0008 (c) |
 
 ## Related
-- ADR-0001 (delivery pass + tripwire), ADR-0002 (renderer per-frame costs).
+- ADR-0001 (delivery pass + tripwire), ADR-0002 (renderer per-frame costs), ADR-0008 (UI/HUD — adds the per-tick dirty-check slice, 2026-08-01).

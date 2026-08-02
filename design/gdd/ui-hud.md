@@ -173,8 +173,16 @@ the one thing they needed to know.
 5. **anomaliesLogged is a session-cumulative count of `renderer:anomaly_density` events.**
    Resolves Win/Lose's own flagged gap (its ending record has no `anomaliesLogged` field). UI/HUD
    maintains its own tally — incremented once per `renderer:anomaly_density` event received,
-   regardless of the sign of `sigma` (spike, σ>0, or deficit, σ<0; the payload carries no type
-   label per the producer's 2026-07-15 revision) — and reads it at session end for the terminal screen.
+   regardless of the *magnitude* of `sigma` — and reads it at session end for the terminal screen.
+   **`sigma` is magnitude-only (`sigma ≥ 0`), never signed, and carries no type label.** The producer
+   computes σ signed internally (positive = spike, negative = deficit) but **strips the sign before
+   emission** (`point-cloud-renderer.md` Formula 2; `entities.yaml`: *"MAGNITUDE ONLY (sigma >= 0)
+   — sign stripped before emission"*). This is load-bearing, not incidental: a signed value is a
+   deterministic **entity-type oracle** (negative ⇒ Type A, positive ⇒ Type B), which would breach
+   Rule 3's inherited "never learn which type" constraint at the event-contract level.
+   *Corrected 2026-08-01 — this GDD described `sigma` as signed in three places (here, the
+   Interactions table, and AC-UH13). The 2026-08-01 architecture review's C5 audit enumerated four
+   artefacts carrying this contract and missed this one, so its "RESOLVED" verdict was an overclaim.*
    Chosen over tallying Entity System manifestation changes because `renderer:anomaly_density` is
    the more literal match for "anomaly *logged*" (a detected data anomaly, not merely "the entity
    moved") and requires no new event from any other system.
@@ -404,7 +412,7 @@ identical tick — not AC-UH32/UH35, which each test `SEALED` in isolation).
 | Scan Node | in | `getNodeLedgerViewModel()` (polled while `HUD_ACTIVE`) |
 | Scan Mechanic | in | `movement:scan_triggered`, `scan:capture_frame`, `scan:processing`, `scan:uploading`, `movement:scan_released`, `scan:captured` (scan-readout state) |
 | Entity System | in | `entity:proximity {tier}` (proximity bar + error-message escalation) |
-| Point Cloud Renderer | in | `renderer:anomaly_density {sigma}` (error messages + `anomaliesLogged` tally; `sigma` is signed, no type label — producer revision 2026-07-15) |
+| Point Cloud Renderer | in | `renderer:anomaly_density {sigma}` (error messages + `anomaliesLogged` tally; `sigma` is **magnitude-only, `≥ 0`** — sign stripped by the producer, no type label; a signed value would be an entity-type oracle. Corrected 2026-08-01, previously read "signed") |
 | Win/Lose | in | Ending record `{primaryOutcome, coverage, nodesCompleted, entityEverCaptured}` + this system's own `anomaliesLogged` tally, at `SEALED` |
 | Orchestrator | in | Cached session state (`LOADING`/`ACTIVE`/`SEALED`); `session:tick` (subscribed as the per-tick **boundary** for end-of-tick audio evaluation + render-tick dirty-check — `elapsedSeconds` payload **not** consumed, see Rule 9) |
 | FPS Movement | in | `player:position {x,y,z}` (diegetic coordinate display, corner HUD) |
@@ -834,10 +842,19 @@ Both factors and the absolute-max are injectable/mockable config, never a real c
 
 ### anomaliesLogged Tally (Rule 5)
 
-**AC-UH13 — Tally increments exactly once per renderer:anomaly_density event, regardless of sigma sign**
-GIVEN a `renderer:anomaly_density {sigma: 5.0}` event (spike) and a `renderer:anomaly_density
-{sigma: -4.0}` event (deficit) each fire once, WHEN each is received, THEN `anomaliesLogged`
-increments by exactly 1 per event, for both sigma signs identically. **BLOCKING (Logic)**
+**AC-UH13 — Tally increments exactly once per renderer:anomaly_density event, regardless of sigma magnitude**
+GIVEN a `renderer:anomaly_density {sigma: 5.0}` event and a `renderer:anomaly_density
+{sigma: 2.6}` event (both magnitude-only, `≥ 0`, at different magnitudes — one far above and one
+just over the 2.5 default threshold) each fire once, WHEN each is received, THEN `anomaliesLogged`
+increments by exactly 1 per event, identically at both magnitudes — the tally is magnitude-blind.
+**BLOCKING (Logic)**
+
+> *Corrected 2026-08-01: this AC previously staged `{sigma: -4.0}` as a "deficit" fixture. That
+> payload is **unreachable** — the producer strips the sign before emission (`sigma ≥ 0` always,
+> per `entities.yaml` and `point-cloud-renderer.md` Formula 2), so a developer would have written a
+> BLOCKING test against a payload the system cannot emit. The AC's intent (tally is insensitive to
+> the event's magnitude) is preserved; only the impossible fixture is replaced. Type discrimination
+> is deliberately impossible here by design — see Core Rule 5.*
 
 **AC-UH14 — Tally is session-cumulative across all ticks**
 GIVEN multiple `renderer:anomaly_density` events fire across many separate ticks over a session,
